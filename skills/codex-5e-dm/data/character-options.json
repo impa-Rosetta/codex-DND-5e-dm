@@ -1,0 +1,41 @@
+{
+  "schema_version": 1,
+  "ruleset": "srd-5.1-2014",
+  "catalog_version": "0.1.0-partial",
+  "source": "https://media.dndbeyond.com/compendium-images/srd/5.1/SRD_CC_v5.1.pdf",
+  "races": [
+    {"id":"dwarf_hill","section":"Races > Dwarf > Hill Dwarf","status":"indexed_only"},
+    {"id":"dwarf_mountain","section":"Races > Dwarf > Mountain Dwarf","status":"indexed_only"},
+    {"id":"elf_high","section":"Races > Elf > High Elf","status":"indexed_only"},
+    {"id":"elf_wood","section":"Races > Elf > Wood Elf","status":"indexed_only"},
+    {"id":"elf_drow","section":"Races > Elf > Dark Elf","status":"indexed_only"},
+    {"id":"halfling_lightfoot","section":"Races > Halfling > Lightfoot","status":"indexed_only"},
+    {"id":"halfling_stout","section":"Races > Halfling > Stout","status":"indexed_only"},
+    {"id":"human","section":"Races > Human","status":"buildable"},
+    {"id":"dragonborn","section":"Races > Dragonborn","status":"indexed_only"},
+    {"id":"gnome_forest","section":"Races > Gnome > Forest Gnome","status":"indexed_only"},
+    {"id":"gnome_rock","section":"Races > Gnome > Rock Gnome","status":"indexed_only"},
+    {"id":"half_elf","section":"Races > Half-Elf","status":"indexed_only"},
+    {"id":"half_orc","section":"Races > Half-Orc","status":"indexed_only"},
+    {"id":"tiefling","section":"Races > Tiefling","status":"indexed_only"}
+  ],
+  "classes": [
+    {"id":"barbarian","section":"Classes > Barbarian","status":"indexed_only"},
+    {"id":"bard","section":"Classes > Bard","status":"indexed_only"},
+    {"id":"cleric","section":"Classes > Cleric","status":"indexed_only"},
+    {"id":"druid","section":"Classes > Druid","status":"indexed_only"},
+    {"id":"fighter","section":"Classes > Fighter","status":"buildable"},
+    {"id":"monk","section":"Classes > Monk","status":"indexed_only"},
+    {"id":"paladin","section":"Classes > Paladin","status":"indexed_only"},
+    {"id":"ranger","section":"Classes > Ranger","status":"indexed_only"},
+    {"id":"rogue","section":"Classes > Rogue","status":"indexed_only"},
+    {"id":"sorcerer","section":"Classes > Sorcerer","status":"indexed_only"},
+    {"id":"warlock","section":"Classes > Warlock","status":"indexed_only"},
+    {"id":"wizard","section":"Classes > Wizard","status":"indexed_only"}
+  ],
+  "backgrounds": [
+    {"id":"acolyte","section":"Backgrounds > Acolyte","status":"buildable"},
+    {"id":"custom_background","section":"Backgrounds > Customizing a Background","status":"indexed_only"}
+  ],
+  "coverage_note": "This is an option index, not full first-level character creation. Spells, equipment branches, and class features are not fully cataloged."
+}
