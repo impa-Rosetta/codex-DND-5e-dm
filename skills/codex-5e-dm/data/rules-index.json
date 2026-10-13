@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "ruleset": "srd-5.1-2014",
+  "source": {
+    "title": "System Reference Document 5.1",
+    "url": "https://media.dndbeyond.com/compendium-images/srd/5.1/SRD_CC_v5.1.pdf",
+    "license": "CC-BY-4.0",
+    "attribution_file": "../../../LICENSES/SRD-5.1-CC-BY-4.0.md"
+  },
+  "status_meaning": "indexed_only: source location is known; no numerical implementation is claimed",
+  "rules": [
+    {"id":"race.human","kind":"entry","section":"Races > Human","m2_required":true,"status":"indexed_only"},
+    {"id":"races.other","kind":"section","section":"Races","m2_required":false,"status":"indexed_only"},
+    {"id":"class.fighter","kind":"entry","section":"Classes > Fighter","m2_required":true,"status":"indexed_only"},
+    {"id":"classes.other","kind":"section","section":"Classes","m2_required":false,"status":"indexed_only"},
+    {"id":"background.acolyte","kind":"entry","section":"Backgrounds > Acolyte","m2_required":true,"status":"indexed_only"},
+    {"id":"backgrounds.other","kind":"section","section":"Backgrounds","m2_required":false,"status":"indexed_only"},
+    {"id":"character.ability_scores","kind":"rule","section":"Using Ability Scores","m2_required":true,"status":"indexed_only"},
+    {"id":"character.proficiency","kind":"rule","section":"Beyond 1st Level > Character Advancement","m2_required":true,"status":"indexed_only"},
+    {"id":"character.advancement","kind":"rule","section":"Beyond 1st Level","m2_required":false,"status":"indexed_only"},
+    {"id":"character.multiclassing","kind":"rule","section":"Multiclassing","m2_required":false,"status":"indexed_only"},
+    {"id":"check.ability","kind":"rule","section":"Using Ability Scores > Ability Checks","m2_required":true,"status":"indexed_only"},
+    {"id":"check.saving_throw","kind":"rule","section":"Using Ability Scores > Saving Throws","m2_required":true,"status":"indexed_only"},
+    {"id":"adventuring.exploration","kind":"section","section":"Adventuring","m2_required":true,"status":"indexed_only"},
+    {"id":"adventuring.rest","kind":"rule","section":"Adventuring > Resting","m2_required":true,"status":"indexed_only"},
+    {"id":"combat.initiative_turn","kind":"rule","section":"Combat > The Order of Combat","m2_required":true,"status":"indexed_only"},
+    {"id":"combat.attack_damage","kind":"rule","section":"Combat > Making an Attack / Damage and Healing","m2_required":true,"status":"indexed_only"},
+    {"id":"combat.movement_position","kind":"rule","section":"Combat > Movement and Position","m2_required":true,"status":"indexed_only"},
+    {"id":"combat.conditions","kind":"section","section":"Conditions","m2_required":true,"status":"indexed_only"},
+    {"id":"combat.death_saves","kind":"rule","section":"Combat > Dropping to 0 Hit Points","m2_required":true,"status":"indexed_only"},
+    {"id":"equipment.weapons_armor","kind":"section","section":"Equipment","m2_required":true,"status":"indexed_only"},
+    {"id":"magic.spellcasting","kind":"section","section":"Spellcasting","m2_required":false,"status":"indexed_only"},
+    {"id":"magic.spells","kind":"section","section":"Spells","m2_required":false,"status":"indexed_only"},
+    {"id":"monsters.goblin","kind":"entry","section":"Monsters > Goblin","m2_required":true,"status":"indexed_only"},
+    {"id":"monsters.other","kind":"section","section":"Monsters","m2_required":false,"status":"indexed_only"},
+    {"id":"items.magic","kind":"section","section":"Magic Items","m2_required":false,"status":"indexed_only"},
+    {"id":"dm.environment","kind":"section","section":"Traps / Diseases / Poisons / Objects","m2_required":false,"status":"indexed_only"}
+  ]
+}
