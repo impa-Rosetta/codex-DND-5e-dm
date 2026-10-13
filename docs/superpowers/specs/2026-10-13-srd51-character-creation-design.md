@@ -2,7 +2,7 @@
 
 日期：2026-10-13
 
-状态：待用户核对
+状态：用户已确认
 
 依据：[SRD 5.1 CC BY 4.0](https://media.dndbeyond.com/compendium-images/srd/5.1/SRD_CC_v5.1.pdf)、[项目设计](../../design.md)、[事件契约](../../data-contract.md)
 
