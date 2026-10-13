@@ -59,6 +59,12 @@ class CharacterTests(unittest.TestCase):
         with self.assertRaises(character.CharacterError):
             character.build(data)
 
+    def test_unimplemented_fighting_style_rejected(self):
+        data = hero(); data["fighting_style"] = "protection"
+        with self.assertRaises(character.CharacterError) as caught:
+            character.build(data)
+        self.assertEqual(caught.exception.code, "unsupported_option")
+
 
 if __name__ == "__main__":
     unittest.main()

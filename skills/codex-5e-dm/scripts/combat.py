@@ -101,6 +101,8 @@ def attack_and_commit(directory: str | Path, operation_id: str, actor_id: str,
 
 
 def main(argv=None) -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
     parser.add_argument("directory")
     parser.add_argument("--operation-id", required=True)

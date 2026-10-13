@@ -302,6 +302,8 @@ def preview_character(directory: str | Path, choices: dict, *, loaded_events: li
 
 
 def main(argv: list[str] | None = None) -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("create"); p.add_argument("directory"); p.add_argument("--name", required=True)

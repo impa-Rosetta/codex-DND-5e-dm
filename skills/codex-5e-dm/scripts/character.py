@@ -91,7 +91,9 @@ def options(context: dict | None = None) -> dict:
             "catalog_version": data["catalog_version"],
             "races": data["races"], "classes": data["classes"], "backgrounds": data["backgrounds"],
             "ability_methods": ["standard_array", "point_buy", "rolled"],
-            "fighter_skills": sorted(FIGHTER_SKILLS), "fighting_styles": sorted(STYLES),
+            "fighter_skills": sorted(FIGHTER_SKILLS),
+            "fighting_styles": [{"id": style, "status": "buildable" if style == "defense" else "indexed_only"}
+                                for style in sorted(STYLES)],
             "languages": sorted(LANGUAGES),
             "notice": "Only human fighter with acolyte background is currently mechanically verified."}
 
@@ -133,6 +135,8 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
     style = data.get("fighting_style")
     if style not in STYLES:
         _err("missing_choice", "fighting_style", "Choose one fighter fighting style")
+    if style != "defense":
+        _err("unsupported_option", "fighting_style", "This style's action rules are not implemented")
     armor = data.get("armor")
     if armor not in ("chain_mail", "leather", "none"):
         _err("invalid_choice", "armor", "Choose chain_mail, leather, or none")
@@ -188,6 +192,8 @@ def _read_input(path: str) -> dict:
 
 
 def main(argv=None) -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
     command = parser.add_subparsers(dest="command", required=True)
     for name in ("options", "build"):

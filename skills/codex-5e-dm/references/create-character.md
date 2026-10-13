@@ -2,7 +2,7 @@
 
 先运行 `python scripts/character.py options`。当前只有普通人类战士＋侍僧可提交；其他 ID 是待实现索引，不能建卡。玩家自由填写姓名和个人往事；故事文本不产生额外奖励。
 
-向玩家询问六项基础属性的分配方式：标准数组 `15,14,13,12,10,8`，玩家主动选择 27 点购点，或六组 `4d6` 取最高三颗。掷骰方式先执行 `python scripts/state.py roll-abilities <战役目录> --operation-id <UUID>`；事件内有六组原始点数、舍弃索引、保留点数和总数。同一次掷骰重试必须复用操作 ID，不重掷。玩家按 0–5 索引把六组合计一一分配给属性，输入 `ability_method: rolled`、`roll_event_id` 和 `rolled_assignment`，不可自报 `base_abilities`。询问两个战士技能（不可与侍僧的洞悉重复）、侍僧的两门语言、战斗风格、当前穿戴护甲和盾牌状态；不替玩家选择。
+向玩家询问六项基础属性的分配方式：标准数组 `15,14,13,12,10,8`，玩家主动选择 27 点购点，或六组 `4d6` 取最高三颗。掷骰方式先执行 `python scripts/state.py roll-abilities <战役目录> --operation-id <UUID>`；事件内有六组原始点数、舍弃索引、保留点数和总数。同一次掷骰重试必须复用操作 ID，不重掷。玩家按 0–5 索引把六组合计一一分配给属性，输入 `ability_method: rolled`、`roll_event_id` 和 `rolled_assignment`，不可自报 `base_abilities`。询问两个战士技能（不可与侍僧的洞悉重复）、侍僧的两门语言、当前穿戴护甲和盾牌状态。当前只有“防御”战斗风格可计算；若玩家想选其他风格，说明尚未支持，不要代选。
 
 把选择写成 JSON 文件。标准数组或购点可执行 `python scripts/character.py build --input <文件>` 预览；掷骰方式须执行 `python scripts/state.py preview-character <战役目录> --input <文件>`，以战役事件核验骰值。预览不写正式角色。展示生命值、护甲等级、属性、熟练和资源，询问玩家是否确认。得到明确确认后生成一次 UUID 操作 ID，执行 `python scripts/state.py confirm-character <战役目录> --operation-id <UUID> --input <同一文件>`。网络或进程重试复用原操作 ID，不重新建卡。已确认角色更改机械项须走未来重建流程，禁止手改 `state.json`。
 

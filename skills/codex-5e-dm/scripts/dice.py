@@ -100,6 +100,8 @@ def roll_dice(
 
 
 def main(argv: list[str] | None = None) -> int:
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="Roll auditable SRD 5.1 dice")
     commands = parser.add_subparsers(dest="command", required=True)
     roll_parser = commands.add_parser("roll", help="roll a dice expression once")
