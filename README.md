@@ -4,10 +4,16 @@
 
 项目目前处于**设计与规划阶段，尚不可游玩**。首版以 2014 年版 SRD 5.1 为规则基础，先完成单人游玩，再考虑由玩家创作、AI 审核的可选扩展包。项目不会复制参考项目的代码或界面。
 
+M1 已开始：规则来源与覆盖范围、事件/存档契约已写成文档。`rules-index.json` 目前只有来源索引，**没有可执行的游戏规则或掷骰器**。
+
 ## 文档
 
 - [设计规格](docs/design.md)
 - [M1–M2 实施计划](docs/m1-m2-plan.md)
+- [SRD 5.1 覆盖矩阵](docs/srd-coverage.md)
+- [战役数据与事件契约](docs/data-contract.md)
+- [规则与架构决定](docs/decisions.md)
+- [SRD 5.1 来源与署名](LICENSES/SRD-5.1-CC-BY-4.0.md)
 
 ## 路线图
 
