@@ -199,7 +199,12 @@ def apply_event(state: dict, event: dict) -> dict:
             connection = [result["scene"]["location_id"], location_id]
             if connection not in result["scene"]["discovered_connections"]:
                 result["scene"]["discovered_connections"].append(connection)
-    elif kind == "combat.attack_resolved":
+    elif kind in ("combat.attack_resolved", "combat.spell_resolved"):
+        if "pact_slot_after" in payload:
+            slots = result["character"]["resources"].get("pact_slot_1")
+            if slots is None or payload["pact_slot_after"] != slots["current"] - 1:
+                raise StateError("Invalid Pact Magic slot expenditure")
+            slots["current"] = payload["pact_slot_after"]
         if payload.get("sneak_attack_used"):
             result["combat"]["sneak_attack_used"] = True
         if "ammunition_arrow_after" in payload:
@@ -232,6 +237,18 @@ def apply_event(state: dict, event: dict) -> dict:
             result["combat"]["action_used"] = True
             if payload.get("monk_attack_ready"):
                 result["combat"]["monk_attack_ready"] = True
+        if (payload["actor_combatant_id"] == result["character"]["id"] and
+                payload["target_combatant_id"] != result["character"]["id"] and
+                payload["hp_before"] > 0 and payload["hp_after"] == 0 and
+                result["character"]["source_choices"]["class"] == "warlock"):
+            hero = result["character"]
+            gained = max(1, hero["derived"]["modifiers"]["cha"] + 1)
+            temp = hero["resources"]["temp_hp"]
+            temp["current"] = max(temp["current"], gained)
+            for combatant in result["combat"]["combatants"]:
+                if combatant["combatant_id"] == hero["id"]:
+                    combatant["temp_hp"] = temp["current"]
+                    break
         if target == result["character"]["id"] and payload["hp_after"] == 0:
             result["combat"]["rage_active"] = False
     elif kind == "turn.advanced":
@@ -341,13 +358,27 @@ def apply_event(state: dict, event: dict) -> dict:
                 if combatant["combatant_id"] == result["character"]["id"]:
                     combatant["hp"] = payload["hp_after"]
                     break
+    elif kind == "spell.utility_cast":
+        character = result["character"]
+        slots = character["resources"].get("pact_slot_1")
+        if slots is None or payload["pact_slot_after"] != slots["current"] - 1:
+            raise StateError("Invalid Pact Magic slot expenditure")
+        slots["current"] = payload["pact_slot_after"]
+        character.setdefault("active_effects", {})[payload["spell_id"]] = payload["expires_at"]
+        if result["combat"] is not None:
+            result["combat"]["action_used"] = True
     elif kind == "rest.short_completed":
         resources = result["character"]["resources"]
         resources["hp"]["current"] = payload["hp_after"]
         if "second_wind" in resources:
             resources["second_wind"]["current"] = 1
+        if "pact_slot_1" in resources:
+            resources["pact_slot_1"]["current"] = resources["pact_slot_1"]["max"]
         resources[payload.get("hit_die_key", "hit_dice_d10")]["current"] = payload["hit_dice_after"]
         result["world_time"] = (result["world_time"] or 0) + 60
+        result["character"]["active_effects"] = {
+            spell: expiry for spell, expiry in result["character"].get("active_effects", {}).items()
+            if expiry > result["world_time"]}
     elif kind == "rest.long_completed":
         if payload["started_at"] != (result["world_time"] or 0) or payload["completed_at"] != payload["started_at"] + 480:
             raise StateError("Long-rest event time does not match campaign time")
@@ -361,8 +392,13 @@ def apply_event(state: dict, event: dict) -> dict:
         for paladin_resource in ("divine_sense", "lay_on_hands"):
             if paladin_resource in resources:
                 resources[paladin_resource]["current"] = resources[paladin_resource]["max"]
+        if "pact_slot_1" in resources:
+            resources["pact_slot_1"]["current"] = resources["pact_slot_1"]["max"]
         resources[payload.get("hit_die_key", "hit_dice_d10")]["current"] = payload["hit_dice_after"]
         result["world_time"] = payload["completed_at"]
+        result["character"]["active_effects"] = {
+            spell: expiry for spell, expiry in result["character"].get("active_effects", {}).items()
+            if expiry > result["world_time"]}
         result["last_long_rest_start"] = payload["started_at"]
     elif kind == "position.changed":
         for combatant in result["combat"]["combatants"]:

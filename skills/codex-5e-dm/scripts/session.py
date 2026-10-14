@@ -14,11 +14,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from combat import CombatError, make_initiative, resolve_attack
 from dice import roll_dice
+from spells import SpellError, resolve_save_spell
 from state import StateError, transact
 
 
 GOBLIN = {"name": "哥布林", "ac": 15, "hp": 7, "temp_hp": 0,
-          "initiative_bonus": 2, "speed": 30,
+          "initiative_bonus": 2, "speed": 30, "saves": {"dex": 2, "con": 0},
           "attack": {"id": "scimitar", "name": "弯刀", "attack_bonus": 4,
                      "damage_die": 6, "damage_bonus": 2, "reach": 5,
                      "damage_type": "slashing"}}
@@ -540,6 +541,65 @@ def lay_on_hands(directory, operation_id: str, amount: int):
                     rules=["class.paladin.lay_on_hands"])
 
 
+def cast_spell(directory, operation_id: str, spell_id: str, target_id: str | None = None,
+               *, mode="normal", roller=None):
+    def resolve(state, _events):
+        hero = _hero(state)
+        if hero["source_choices"]["class"] != "warlock":
+            raise SessionError("This fixed spellcasting route requires a warlock")
+        if hero["resources"]["hp"]["current"] <= 0:
+            raise SessionError("Unconscious character cannot cast")
+        spellcasting = hero["derived"]["spellcasting"]
+        known = spellcasting["cantrips"] + spellcasting["known_level1"]
+        if spell_id not in known:
+            raise SessionError("Spell is not known")
+        leveled = spell_id in spellcasting["known_level1"]
+        slots = hero["resources"]["pact_slot_1"]
+        if leveled and slots["current"] < 1:
+            raise SessionError("No Pact Magic slot remains")
+        combat = state["combat"]
+        if combat is not None:
+            if (combat["combatants"][combat["turn_index"]]["combatant_id"] != hero["id"] or
+                    combat["action_used"]):
+                raise SessionError("Spell requires an available action on your turn")
+        if spell_id == "comprehend_languages":
+            if target_id is not None:
+                raise SessionError("Comprehend Languages targets self")
+            return {"spell_id": spell_id, "pact_slot_after": slots["current"] - 1,
+                    "expires_at": (state["world_time"] or 0) + 60,
+                    "public_view": {"summary": f"{hero['name']}施展通晓语言，持续一小时。"}}
+        if combat is None:
+            raise SessionError("This spell requires an active encounter target")
+        actor = combat["combatants"][combat["turn_index"]]
+        target = next((unit for unit in combat["combatants"] if unit["combatant_id"] == target_id), None)
+        if target is None or target["combatant_id"] == hero["id"] or target["hp"] <= 0:
+            raise SessionError("Invalid spell target")
+        distance = 5 * max(abs(actor["position"][0] - target["position"][0]),
+                           abs(actor["position"][1] - target["position"][1]))
+        ranges = {"eldritch_blast": 120, "poison_spray": 10, "burning_hands": 15}
+        if distance > ranges[spell_id]:
+            raise SessionError("Target outside spell range")
+        if spell_id == "eldritch_blast":
+            weapon = {"id": spell_id, "name": "魔能爆", "attack_bonus": spellcasting["attack_bonus"],
+                      "damage_die": 10, "damage_bonus": 0, "damage_type": "force"}
+            outcome = resolve_attack(combat, hero["id"], target_id, weapon,
+                                     mode=mode, roller=roller, extra_disadvantage=distance <= 5)
+            outcome["spell_id"] = spell_id
+            outcome["damage_type"] = "force"
+        else:
+            if mode != "normal":
+                raise SessionError("Attack-roll advantage mode does not apply to a target saving throw")
+            save_bonus = GOBLIN["saves"]["con" if spell_id == "poison_spray" else "dex"]
+            outcome = resolve_save_spell(spell_id, hero, target, save_bonus, roller=roller)
+        if leveled:
+            outcome["pact_slot_after"] = slots["current"] - 1
+        return outcome
+
+    kind = "spell.utility_cast" if spell_id == "comprehend_languages" else "combat.spell_resolved"
+    return transact(directory, operation_id, kind, resolve,
+                    rules=["class.warlock.pact_magic", f"spell.{spell_id}"])
+
+
 def short_rest(directory, operation_id: str, *, spend_hit_die=False, roller=None):
     def resolve(state, _events):
         hero = _hero(state)
@@ -664,7 +724,7 @@ def main(argv=None) -> int:
     parser.add_argument("command", choices=("declare", "narrate", "check", "skill-check", "move", "start-combat",
                                             "attack", "combat-action", "combat-move", "advance", "death-save",
                                             "second-wind", "rage", "martial-arts", "divine-sense", "lay-on-hands",
-                                            "short-rest", "long-rest", "end-combat", "recover-stable",
+                                            "cast-spell", "short-rest", "long-rest", "end-combat", "recover-stable",
                                             "search-battlefield"))
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--text")
@@ -676,6 +736,7 @@ def main(argv=None) -> int:
     parser.add_argument("--target-race")
     parser.add_argument("--location-id")
     parser.add_argument("--target-id")
+    parser.add_argument("--spell-id")
     parser.add_argument("--action", choices=("dash", "disengage", "dodge"))
     parser.add_argument("--path", help="JSON array of adjacent [x,y] grid squares")
     parser.add_argument("--reaction", choices=("accept", "decline"),
@@ -705,6 +766,8 @@ def main(argv=None) -> int:
                                                      args.target_id, mode=args.mode),
                 "divine-sense": lambda: divine_sense(args.directory, args.operation_id),
                 "lay-on-hands": lambda: lay_on_hands(args.directory, args.operation_id, args.amount),
+                "cast-spell": lambda: cast_spell(args.directory, args.operation_id, args.spell_id,
+                                                 args.target_id, mode=args.mode),
                 "short-rest": lambda: short_rest(args.directory, args.operation_id,
                                                   spend_hit_die=args.spend_hit_die),
                 "long-rest": lambda: long_rest(args.directory, args.operation_id),
@@ -713,7 +776,7 @@ def main(argv=None) -> int:
     commands["search-battlefield"] = lambda: search_battlefield(args.directory, args.operation_id)
     try:
         event, state = commands[args.command]()
-    except (SessionError, StateError, CombatError, ValueError, KeyError, TypeError) as exc:
+    except (SessionError, StateError, CombatError, SpellError, ValueError, KeyError, TypeError) as exc:
         print(json.dumps({"error": {"code": "invalid_action", "message": str(exc)}}, ensure_ascii=False), file=sys.stderr)
         return 2
     print(json.dumps({"event": event, "state": state}, ensure_ascii=False, separators=(",", ":")))

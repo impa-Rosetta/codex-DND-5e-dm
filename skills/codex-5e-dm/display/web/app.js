@@ -1,8 +1,8 @@
 const $ = id => document.getElementById(id);
 const abilities = {str: '力量', dex: '敏捷', con: '体质', int: '智力', wis: '感知', cha: '魅力'};
-const labels = {human: '人类', fighter: '战士', barbarian: '野蛮人', rogue: '游荡者', monk: '武僧', paladin: '圣武士', ranger: '游侠', acolyte: '侍僧',
+const labels = {human: '人类', fighter: '战士', barbarian: '野蛮人', rogue: '游荡者', monk: '武僧', paladin: '圣武士', ranger: '游侠', warlock: '魔契师', acolyte: '侍僧',
   old_mill: '旧磨坊路口', forest_path: '林中岔路',
-  second_wind: '第二春', rage: '狂暴次数', divine_sense: '神圣感知', lay_on_hands: '圣疗池', hit_dice_d10: '生命骰 d10',
+  second_wind: '第二春', rage: '狂暴次数', divine_sense: '神圣感知', lay_on_hands: '圣疗池', pact_slot_1: '一环魔契法术位', hit_dice_d10: '生命骰 d10',
   hit_dice_d12: '生命骰 d12', hit_dice_d8: '生命骰 d8',
   ammunition_arrow: '箭矢', recoverable_arrow: '可找回箭矢'};
 let lastRevision = -1;

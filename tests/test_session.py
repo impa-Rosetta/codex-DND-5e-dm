@@ -782,6 +782,44 @@ class SessionTests(unittest.TestCase):
         self.assertIn("class.ranger.natural_explorer", tracked["rules"])
         self.assertEqual(state.load(path)[1]["revision"], snapshot["revision"])
 
+    def test_fiend_warlock_spells_slots_and_blessing_replay(self):
+        path = Path(self.temp.name) / "warlock"
+        state.create(path, "魔契师")
+        choices = hero()
+        choices.update(**{"class": "warlock", "class_skills": ["arcana", "deception"],
+                          "patron": "fiend", "cantrips": ["eldritch_blast", "poison_spray"],
+                          "spells_known": ["burning_hands", "comprehend_languages"],
+                          "armor": "leather_armor", "shield": False, "weapon": "dagger"})
+        del choices["fighting_style"]
+        choices["base_abilities"]["str"], choices["base_abilities"]["cha"] = 8, 15
+        created, _ = state.confirm_character(path, operation(), choices)
+        self.assertIn("spell.eldritch_blast", created["rules"])
+        utility, snapshot = session.cast_spell(path, operation(), "comprehend_languages")
+        self.assertEqual(snapshot["character"]["resources"]["pact_slot_1"]["current"], 0)
+        self.assertEqual(snapshot["character"]["active_effects"]["comprehend_languages"], 60)
+        session.short_rest(path, operation())
+        self.assertEqual(state.load(path)[1]["character"]["resources"]["pact_slot_1"]["current"], 1)
+        session.check(path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(path, operation(), "forest_path")
+        initiative = iter([20, 1])
+        _, snapshot = session.start_encounter(path, operation(), roller=lambda _: next(initiative))
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != snapshot["character"]["id"])
+        burns = iter([15, 3, 3, 3])
+        fire, snapshot = session.cast_spell(path, operation(), "burning_hands", goblin_id,
+                                            roller=lambda _: next(burns))
+        self.assertTrue(fire["payload"]["saved"])
+        self.assertEqual(fire["payload"]["damage"], 4)
+        self.assertEqual(snapshot["character"]["resources"]["pact_slot_1"]["current"], 0)
+        session.advance_turn(path, operation())
+        session.advance_turn(path, operation())
+        blasts = iter([15, 15, 3])
+        blast, snapshot = session.cast_spell(path, operation(), "eldritch_blast", goblin_id,
+                                             roller=lambda _: next(blasts))
+        self.assertEqual(blast["payload"]["damage"], 3)
+        self.assertEqual(snapshot["character"]["resources"]["temp_hp"]["current"], 4)
+        self.assertEqual(state.load(path)[1]["revision"], snapshot["revision"])
+
 
 if __name__ == "__main__":
     unittest.main()

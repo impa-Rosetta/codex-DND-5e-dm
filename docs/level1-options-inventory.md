@@ -5,7 +5,7 @@
 | 范围 | 已逐项冻结的 ID | 当前机械实现 |
 | --- | --- | --- |
 | 种族／亚种（14） | `dwarf_hill`, `dwarf_mountain`, `elf_high`, `elf_wood`, `elf_drow`, `halfling_lightfoot`, `halfling_stout`, `human`, `dragonborn`, `gnome_forest`, `gnome_rock`, `half_elf`, `half_orc`, `tiefling` | 仅普通人类的窄样例可建 |
-  | 职业（12） | `barbarian`, `bard`, `cleric`, `druid`, `fighter`, `monk`, `paladin`, `ranger`, `rogue`, `sorcerer`, `warlock`, `wizard` | 战士、野蛮人、游荡者、武僧、圣武士、游侠的窄样例可建 |
+  | 职业（12） | `barbarian`, `bard`, `cleric`, `druid`, `fighter`, `monk`, `paladin`, `ranger`, `rogue`, `sorcerer`, `warlock`, `wizard` | 战士、野蛮人、游荡者、武僧、圣武士、游侠、魔契师的窄样例可建 |
 | 一级即需选择的 SRD 子职业（3） | `class.cleric.life_domain`, `class.sorcerer.draconic_bloodline`, `class.warlock.fiend` | 尚不可建；这不是非 SRD 官方子职业的许可 |
 | 背景（2 个入口） | `acolyte`, `custom_background` | 仅固定侍僧路径；自定义背景待实现 |
 | 属性方式 | `standard_array`, `point_buy`, `rolled_4d6_drop_lowest` | 三种方式已有窄样例计算及审计 |
