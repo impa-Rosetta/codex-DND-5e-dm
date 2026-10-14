@@ -51,6 +51,8 @@
     {"id":"class.monk.unarmored_defense","kind":"entry","section":"Classes > Monk > Unarmored Defense","m2_required":true,"status":"indexed_only"},
     {"id":"class.monk.martial_arts","kind":"entry","section":"Classes > Monk > Martial Arts","m2_required":true,"status":"indexed_only"},
     {"id":"class.paladin","kind":"entry","section":"Classes > Paladin","m2_required":true,"status":"indexed_only"},
+    {"id":"class.paladin.divine_sense","kind":"entry","section":"Classes > Paladin > Divine Sense","m2_required":true,"status":"indexed_only"},
+    {"id":"class.paladin.lay_on_hands","kind":"entry","section":"Classes > Paladin > Lay on Hands","m2_required":true,"status":"indexed_only"},
     {"id":"class.ranger","kind":"entry","section":"Classes > Ranger","m2_required":true,"status":"indexed_only"},
     {"id":"class.rogue","kind":"entry","section":"Classes > Rogue","m2_required":true,"status":"indexed_only"},
     {"id":"class.rogue.expertise","kind":"entry","section":"Classes > Rogue > Expertise","m2_required":true,"status":"indexed_only"},

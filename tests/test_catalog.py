@@ -25,7 +25,7 @@ class CatalogTests(unittest.TestCase):
         value = character.options()
         self.assertEqual({item["id"] for item in value["races"] if item["status"] == "buildable"}, {"human"})
         self.assertEqual({item["id"] for item in value["classes"] if item["status"] == "buildable"},
-                         {"fighter", "barbarian", "rogue", "monk"})
+                         {"fighter", "barbarian", "rogue", "monk", "paladin"})
         self.assertEqual({item["id"] for item in value["backgrounds"] if item["status"] == "buildable"}, {"acolyte"})
 
 

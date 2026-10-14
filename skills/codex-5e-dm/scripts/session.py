@@ -447,6 +447,52 @@ def rage(directory, operation_id: str):
                     rules=["class.barbarian.rage"])
 
 
+def divine_sense(directory, operation_id: str):
+    def resolve(state, _events):
+        hero = _hero(state)
+        if hero["source_choices"]["class"] != "paladin":
+            raise SessionError("Divine Sense is a paladin feature")
+        if hero["resources"]["hp"]["current"] <= 0:
+            raise SessionError("Unconscious character cannot use Divine Sense")
+        if hero["resources"]["divine_sense"]["current"] < 1:
+            raise SessionError("No Divine Sense uses remain")
+        combat = state["combat"]
+        if combat is not None:
+            if (combat["combatants"][combat["turn_index"]]["combatant_id"] != hero["id"] or
+                    combat["action_used"]):
+                raise SessionError("Divine Sense requires an available action on your turn")
+        return {"detected": [],
+                "public_view": {"summary": "神圣感知未发现 60 英尺内无全掩护的天界生物、邪魔、不死生物或圣化／亵渎物。"}}
+
+    return transact(directory, operation_id, "paladin.divine_sense_used", resolve,
+                    rules=["class.paladin.divine_sense"])
+
+
+def lay_on_hands(directory, operation_id: str, amount: int):
+    def resolve(state, _events):
+        hero = _hero(state)
+        if hero["source_choices"]["class"] != "paladin":
+            raise SessionError("Lay on Hands is a paladin feature")
+        if type(amount) is not int or amount < 1:
+            raise SessionError("Choose a positive amount of healing")
+        resources = hero["resources"]
+        if resources["hp"]["current"] <= 0 or amount > resources["lay_on_hands"]["current"]:
+            raise SessionError("Character unconscious or healing pool insufficient")
+        if amount > resources["hp"]["max"] - resources["hp"]["current"]:
+            raise SessionError("Healing exceeds missing hit points")
+        combat = state["combat"]
+        if combat is not None:
+            if (combat["combatants"][combat["turn_index"]]["combatant_id"] != hero["id"] or
+                    combat["action_used"]):
+                raise SessionError("Lay on Hands requires an available action on your turn")
+        hp_after = resources["hp"]["current"] + amount
+        return {"healed": amount, "hp_after": hp_after,
+                "public_view": {"summary": f"{hero['name']}以圣疗恢复{amount}点生命值。"}}
+
+    return transact(directory, operation_id, "paladin.lay_on_hands_used", resolve,
+                    rules=["class.paladin.lay_on_hands"])
+
+
 def short_rest(directory, operation_id: str, *, spend_hit_die=False, roller=None):
     def resolve(state, _events):
         hero = _hero(state)
@@ -570,7 +616,8 @@ def main(argv=None) -> int:
     parser.add_argument("directory")
     parser.add_argument("command", choices=("declare", "narrate", "check", "move", "start-combat",
                                             "attack", "combat-action", "combat-move", "advance", "death-save",
-                                            "second-wind", "rage", "martial-arts", "short-rest", "long-rest", "end-combat", "recover-stable",
+                                            "second-wind", "rage", "martial-arts", "divine-sense", "lay-on-hands",
+                                            "short-rest", "long-rest", "end-combat", "recover-stable",
                                             "search-battlefield"))
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--text")
@@ -583,6 +630,7 @@ def main(argv=None) -> int:
                         help="Player's decision when a goblin leaves the hero's reach")
     parser.add_argument("--mode", choices=("normal", "advantage", "disadvantage"), default="normal")
     parser.add_argument("--spend-hit-die", action="store_true")
+    parser.add_argument("--amount", type=int)
     args = parser.parse_args(argv)
     commands = {"declare": lambda: declare(args.directory, args.operation_id, args.text),
                 "narrate": lambda: narrate(args.directory, args.operation_id, args.text),
@@ -600,6 +648,8 @@ def main(argv=None) -> int:
                 "rage": lambda: rage(args.directory, args.operation_id),
                 "martial-arts": lambda: martial_arts(args.directory, args.operation_id,
                                                      args.target_id, mode=args.mode),
+                "divine-sense": lambda: divine_sense(args.directory, args.operation_id),
+                "lay-on-hands": lambda: lay_on_hands(args.directory, args.operation_id, args.amount),
                 "short-rest": lambda: short_rest(args.directory, args.operation_id,
                                                   spend_hit_die=args.spend_hit_die),
                 "long-rest": lambda: long_rest(args.directory, args.operation_id),

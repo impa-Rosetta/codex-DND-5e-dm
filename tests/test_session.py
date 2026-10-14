@@ -708,6 +708,44 @@ class SessionTests(unittest.TestCase):
         with self.assertRaises(session.SessionError):
             session.martial_arts(path, operation(), goblin_id)
 
+    def test_paladin_healing_pool_divine_sense_and_long_rest(self):
+        path = Path(self.temp.name) / "paladin"
+        state.create(path, "圣武士")
+        choices = hero()
+        choices.update(**{"class": "paladin", "class_skills": ["athletics", "medicine"],
+                          "armor": "chain_mail", "shield": True, "weapon": "longsword"})
+        del choices["fighting_style"]
+        choices["base_abilities"]["cha"], choices["base_abilities"]["int"] = 12, 8
+        state.confirm_character(path, operation(), choices)
+        sense, snapshot = session.divine_sense(path, operation())
+        self.assertEqual(sense["payload"]["detected"], [])
+        self.assertEqual(snapshot["character"]["resources"]["divine_sense"]["current"], 1)
+        session.check(path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(path, operation(), "forest_path")
+        initiative = iter([1, 20])
+        _, snapshot = session.start_encounter(path, operation(), roller=lambda _: next(initiative))
+        hero_id = snapshot["character"]["id"]
+        goblin_rolls = iter([15, 2])
+        session.attack(path, operation(), hero_id, roller=lambda _: next(goblin_rolls))
+        session.advance_turn(path, operation())
+        healed, snapshot = session.lay_on_hands(path, operation(), 3)
+        self.assertEqual(healed["payload"]["healed"], 3)
+        self.assertEqual(snapshot["character"]["resources"]["lay_on_hands"]["current"], 2)
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 11)
+        with self.assertRaises(session.SessionError):
+            session.lay_on_hands(path, operation(), 1)
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != hero_id)
+        # The used action prevents a same-turn attack; finish the round before victory.
+        session.advance_turn(path, operation())
+        session.advance_turn(path, operation())
+        killing = iter([20, 2, 2])
+        session.attack(path, operation(), goblin_id, roller=lambda _: next(killing))
+        session.end_encounter(path, operation())
+        _, snapshot = session.long_rest(path, operation())
+        self.assertEqual(snapshot["character"]["resources"]["divine_sense"]["current"], 2)
+        self.assertEqual(snapshot["character"]["resources"]["lay_on_hands"]["current"], 5)
+
 
 if __name__ == "__main__":
     unittest.main()

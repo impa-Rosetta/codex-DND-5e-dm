@@ -322,6 +322,25 @@ def apply_event(state: dict, event: dict) -> dict:
         combat["rage_sustained"] = False
         combat["rage_rounds_remaining"] = 10
         combat["bonus_action_used"] = True
+    elif kind == "paladin.divine_sense_used":
+        resources = result["character"]["resources"]
+        if resources["divine_sense"]["current"] < 1:
+            raise StateError("No Divine Sense uses remain")
+        resources["divine_sense"]["current"] -= 1
+        if result["combat"] is not None:
+            result["combat"]["action_used"] = True
+    elif kind == "paladin.lay_on_hands_used":
+        resources = result["character"]["resources"]
+        if payload["healed"] < 1 or payload["healed"] > resources["lay_on_hands"]["current"]:
+            raise StateError("Invalid Lay on Hands expenditure")
+        resources["lay_on_hands"]["current"] -= payload["healed"]
+        resources["hp"]["current"] = payload["hp_after"]
+        if result["combat"] is not None:
+            result["combat"]["action_used"] = True
+            for combatant in result["combat"]["combatants"]:
+                if combatant["combatant_id"] == result["character"]["id"]:
+                    combatant["hp"] = payload["hp_after"]
+                    break
     elif kind == "rest.short_completed":
         resources = result["character"]["resources"]
         resources["hp"]["current"] = payload["hp_after"]
@@ -339,6 +358,9 @@ def apply_event(state: dict, event: dict) -> dict:
             resources["second_wind"]["current"] = resources["second_wind"]["max"]
         if "rage" in resources:
             resources["rage"]["current"] = resources["rage"]["max"]
+        for paladin_resource in ("divine_sense", "lay_on_hands"):
+            if paladin_resource in resources:
+                resources[paladin_resource]["current"] = resources[paladin_resource]["max"]
         resources[payload.get("hit_die_key", "hit_dice_d10")]["current"] = payload["hit_dice_after"]
         result["world_time"] = payload["completed_at"]
         result["last_long_rest_start"] = payload["started_at"]

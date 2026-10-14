@@ -33,7 +33,7 @@ class CharacterTests(unittest.TestCase):
         value = character.options()
         self.assertEqual(len(value["classes"]), 12)
         self.assertEqual({c["id"] for c in value["classes"] if c["status"] == "buildable"},
-                         {"fighter", "barbarian", "rogue", "monk"})
+                         {"fighter", "barbarian", "rogue", "monk", "paladin"})
         data = hero(); data["class"] = "wizard"
         with self.assertRaises(character.CharacterError) as caught:
             character.build(data)
@@ -162,6 +162,20 @@ class CharacterTests(unittest.TestCase):
         self.assertIn("class.monk.martial_arts", card["rule_ids"])
         self.assertIn("flute", card["derived"]["tool_proficiencies"])
         self.assertNotIn({"id": "flute", "quantity": 1}, card["equipment"])
+
+    def test_human_paladin_lay_on_hands_and_divine_sense(self):
+        data = hero()
+        data.update(**{"class": "paladin", "class_skills": ["athletics", "medicine"],
+                       "armor": "chain_mail", "shield": True, "weapon": "longsword"})
+        del data["fighting_style"]
+        data["base_abilities"]["cha"], data["base_abilities"]["int"] = 12, 8
+        card = character.build(data)
+        self.assertEqual(card["derived"]["ac"], 18)
+        self.assertEqual(card["derived"]["hit_die"], "d10")
+        self.assertEqual(card["derived"]["saving_throws"]["wis"], 2)
+        self.assertEqual(card["resources"]["lay_on_hands"]["current"], 5)
+        self.assertEqual(card["resources"]["divine_sense"]["current"], 2)
+        self.assertNotIn("second_wind", card["resources"])
 
 
 if __name__ == "__main__":
