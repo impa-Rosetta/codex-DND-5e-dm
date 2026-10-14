@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "ruleset": "srd-5.1-2014",
+  "source": "https://media.dndbeyond.com/compendium-images/srd/5.1/SRD_CC_v5.1.pdf",
+  "cross_check": "https://www.dndbeyond.com/sources/dnd/basic-rules-2014/classes",
+  "status": "indexed_only",
+  "note": "Starting packages only; background equipment is additive. Selectors are unresolved until equipment tables and character creation are implemented.",
+  "classes": [
+    {
+      "class_id": "barbarian",
+      "section": "Classes > Barbarian > Class Features > Proficiencies / Equipment",
+      "skill_choice": {"count": 2, "from": ["animal_handling", "athletics", "intimidation", "nature", "perception", "survival"]},
+      "tool_choice": null,
+      "equipment_choices": [
+        {"id": "barbarian.weapon", "alternatives": [
+          {"id": "greataxe", "items": [{"id": "greataxe", "quantity": 1}]},
+          {"id": "martial_melee_weapon", "selectors": [{"category": "martial_melee_weapon", "count": 1}]}
+        ]},
+        {"id": "barbarian.secondary", "alternatives": [
+          {"id": "two_handaxes", "items": [{"id": "handaxe", "quantity": 2}]},
+          {"id": "simple_weapon", "selectors": [{"category": "simple_weapon", "count": 1}]}
+        ]}
+      ],
+      "fixed_equipment": [{"id": "explorers_pack", "quantity": 1}, {"id": "javelin", "quantity": 4}]
+    },
+    {
+      "class_id": "fighter",
+      "section": "Classes > Fighter > Class Features > Proficiencies / Equipment",
+      "skill_choice": {"count": 2, "from": ["acrobatics", "animal_handling", "athletics", "history", "insight", "intimidation", "perception", "survival"]},
+      "tool_choice": null,
+      "equipment_choices": [
+        {"id": "fighter.armor", "alternatives": [
+          {"id": "chain_mail", "items": [{"id": "chain_mail", "quantity": 1}]},
+          {"id": "leather_and_longbow", "items": [{"id": "leather_armor", "quantity": 1}, {"id": "longbow", "quantity": 1}, {"id": "arrow", "quantity": 20}]}
+        ]},
+        {"id": "fighter.weapons", "alternatives": [
+          {"id": "weapon_and_shield", "items": [{"id": "shield", "quantity": 1}], "selectors": [{"category": "martial_weapon", "count": 1}]},
+          {"id": "two_weapons", "selectors": [{"category": "martial_weapon", "count": 2}]}
+        ]},
+        {"id": "fighter.ranged", "alternatives": [
+          {"id": "crossbow", "items": [{"id": "light_crossbow", "quantity": 1}, {"id": "crossbow_bolt", "quantity": 20}]},
+          {"id": "two_handaxes", "items": [{"id": "handaxe", "quantity": 2}]}
+        ]},
+        {"id": "fighter.pack", "alternatives": [
+          {"id": "dungeoneers_pack", "items": [{"id": "dungeoneers_pack", "quantity": 1}]},
+          {"id": "explorers_pack", "items": [{"id": "explorers_pack", "quantity": 1}]}
+        ]}
+      ],
+      "fixed_equipment": []
+    },
+    {
+      "class_id": "monk",
+      "section": "Classes > Monk > Class Features > Proficiencies / Equipment",
+      "skill_choice": {"count": 2, "from": ["acrobatics", "athletics", "history", "insight", "religion", "stealth"]},
+      "tool_choice": {"count": 1, "from_categories": ["artisans_tools", "musical_instrument"]},
+      "equipment_choices": [
+        {"id": "monk.weapon", "alternatives": [
+          {"id": "shortsword", "items": [{"id": "shortsword", "quantity": 1}]},
+          {"id": "simple_weapon", "selectors": [{"category": "simple_weapon", "count": 1}]}
+        ]},
+        {"id": "monk.pack", "alternatives": [
+          {"id": "dungeoneers_pack", "items": [{"id": "dungeoneers_pack", "quantity": 1}]},
+          {"id": "explorers_pack", "items": [{"id": "explorers_pack", "quantity": 1}]}
+        ]}
+      ],
+      "fixed_equipment": [{"id": "dart", "quantity": 10}]
+    },
+    {
+      "class_id": "rogue",
+      "section": "Classes > Rogue > Class Features > Proficiencies / Equipment",
+      "skill_choice": {"count": 4, "from": ["acrobatics", "athletics", "deception", "insight", "intimidation", "investigation", "perception", "performance", "persuasion", "sleight_of_hand", "stealth"]},
+      "tool_choice": null,
+      "equipment_choices": [
+        {"id": "rogue.melee", "alternatives": [
+          {"id": "rapier", "items": [{"id": "rapier", "quantity": 1}]},
+          {"id": "shortsword", "items": [{"id": "shortsword", "quantity": 1}]}
+        ]},
+        {"id": "rogue.secondary", "alternatives": [
+          {"id": "shortbow", "items": [{"id": "shortbow", "quantity": 1}, {"id": "quiver", "quantity": 1}, {"id": "arrow", "quantity": 20}]},
+          {"id": "shortsword", "items": [{"id": "shortsword", "quantity": 1}]}
+        ]},
+        {"id": "rogue.pack", "alternatives": [
+          {"id": "burglars_pack", "items": [{"id": "burglars_pack", "quantity": 1}]},
+          {"id": "dungeoneers_pack", "items": [{"id": "dungeoneers_pack", "quantity": 1}]},
+          {"id": "explorers_pack", "items": [{"id": "explorers_pack", "quantity": 1}]}
+        ]}
+      ],
+      "fixed_equipment": [{"id": "leather_armor", "quantity": 1}, {"id": "dagger", "quantity": 2}, {"id": "thieves_tools", "quantity": 1}]
+    }
+  ]
+}

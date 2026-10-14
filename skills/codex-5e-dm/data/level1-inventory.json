@@ -20,10 +20,19 @@
   "ability_methods": ["standard_array", "point_buy", "rolled_4d6_drop_lowest"],
   "dragonborn_ancestry_ids": ["black", "blue", "brass", "bronze", "copper", "gold", "green", "red", "silver", "white"],
   "fighter_style_ids": ["archery", "defense", "dueling", "great_weapon_fighting", "protection", "two_weapon_fighting"],
-  "equipment_branches": {"status": "not_frozen", "section": "Classes > Equipment / Equipment"},
+  "equipment_branches": {
+    "status": "partial_index",
+    "section": "Classes > Equipment / Equipment",
+    "data_file": "level1-martial-creation-choices.json",
+    "indexed_class_ids": ["barbarian", "fighter", "monk", "rogue"],
+    "missing_class_ids": ["bard", "cleric", "druid", "paladin", "ranger", "sorcerer", "warlock", "wizard"]
+  },
   "cantrips_and_level1_spells": {"status": "partial_index", "section": "Spell Lists", "data_file": "level1-spell-lists.json", "missing": ["racial spell choices", "per-spell mechanics", "class-specific selection limits"]},
-  "other_level1_choices": {"status": "not_frozen", "examples": [
-    "ranger favored enemy and terrain", "sorcerer draconic ancestry",
-    "warlock spells", "class skills and tools"
+  "other_level1_choices": {"status": "partial_index", "indexed": [
+    "barbarian/fighter/monk/rogue class skill selections",
+    "monk tool-category selection"
+  ], "missing": [
+    "remaining class skills and tools", "ranger favored enemy and terrain",
+    "sorcerer draconic ancestry", "warlock spells", "rogue expertise and all other level-one feature selections"
   ]}
 }
