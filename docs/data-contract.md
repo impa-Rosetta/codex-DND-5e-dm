@@ -19,7 +19,7 @@
 
 ### `state.json`
 
-必填字段：`schema_version`、`campaign_id`、`revision`（已应用的最大连续事件序号，初始为 `0`）、`last_applied_event_id`（初始 `null`）、`character`、`scene`、`combat`、`world_time`。`character.id` 是玩家角色稳定 ID；战斗中每个单位有独立 `combatant_id`，即使怪物同名也不共用。`scene` 只含当前地点、已发现地点 ID 和已发现连接；未揭示地图只存在于 DM 私有资料，不进入公开快照。`combat` 在非战斗时为 `null`；战斗时至少保存轮次、当前行动者、各战斗者位置、生命值、状态及已用动作资源。
+必填字段：`schema_version`、`campaign_id`、`revision`（已应用的最大连续事件序号，初始为 `0`）、`last_applied_event_id`（初始 `null`）、`character`、`scene`、`combat`、`world_time`。新建战役另存 `last_long_rest_start`（上一场长休开始时的战役分钟数，初始 `null`）；旧版同格式存档可能缺少此字段，首次长休按 `null` 处理并写入。`character.id` 是玩家角色稳定 ID；战斗中每个单位有独立 `combatant_id`，即使怪物同名也不共用。`scene` 只含当前地点、已发现地点 ID 和已发现连接；未揭示地图只存在于 DM 私有资料，不进入公开快照。`combat` 在非战斗时为 `null`；战斗时至少保存轮次、当前行动者、各战斗者位置、生命值、状态及已用动作资源。
 
 `state.json` 还应保留角色构建选项、属性、熟练、装备、生命值、临时生命值、职业资源、法术位、经验值及规则版本。M2 可以只填 1 级战士实际具有的资源，但字段语义不得与未来职业冲突：缺少某类资源表示该角色没有该资源，不能解释为“尚未加载”。
 

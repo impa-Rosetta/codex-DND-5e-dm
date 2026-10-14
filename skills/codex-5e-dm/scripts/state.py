@@ -91,7 +91,8 @@ def create(directory: str | Path, name: str) -> dict:
              "last_applied_event_id": None, "character": None,
              "scene": {"location_id": "old_mill", "name": "旧磨坊路口",
                        "discovered_locations": ["old_mill"], "discovered_connections": []},
-             "combat": None, "world_time": None, "recent_public_events": []}
+             "combat": None, "world_time": None, "last_long_rest_start": None,
+             "recent_public_events": []}
     _atomic(path / "manifest.json", manifest)
     _atomic(path / "state.json", state)
     (path / "events.jsonl").touch(exist_ok=False)
@@ -213,6 +214,16 @@ def apply_event(state: dict, event: dict) -> dict:
         resources["second_wind"]["current"] = 1
         resources["hit_dice_d10"]["current"] = payload["hit_dice_after"]
         result["world_time"] = (result["world_time"] or 0) + 60
+    elif kind == "rest.long_completed":
+        if payload["started_at"] != (result["world_time"] or 0) or payload["completed_at"] != payload["started_at"] + 480:
+            raise StateError("Long-rest event time does not match campaign time")
+        resources = result["character"]["resources"]
+        resources["hp"]["current"] = payload["hp_after"]
+        resources["temp_hp"]["current"] = payload["temp_hp_after"]
+        resources["second_wind"]["current"] = resources["second_wind"]["max"]
+        resources["hit_dice_d10"]["current"] = payload["hit_dice_after"]
+        result["world_time"] = payload["completed_at"]
+        result["last_long_rest_start"] = payload["started_at"]
     elif kind == "position.changed":
         for combatant in result["combat"]["combatants"]:
             if combatant["combatant_id"] == payload["combatant_id"]:
@@ -325,7 +336,8 @@ def public_snapshot(state: dict, manifest: dict) -> dict:
             "name": manifest["name"], "revision": state["revision"],
             "last_applied_event_id": state["last_applied_event_id"],
             "character": state["character"], "scene": scene,
-            "combat": combat, "events": state["recent_public_events"]}
+            "combat": combat, "world_time": state["world_time"],
+            "events": state["recent_public_events"]}
 
 
 def confirm_character(directory: str | Path, operation_id: str, choices: dict) -> tuple[dict, dict]:

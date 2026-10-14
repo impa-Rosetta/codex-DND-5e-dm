@@ -19,7 +19,7 @@
 | `check.ability` | Using Ability Scores | 是 | 已索引 | 固定察觉 DC 12、优势／劣势、无检定自然 1／20 特判；部分实现 | 场景测试通过 | M2：通用技能与不同难度 |
 | `check.saving_throw` | Using Ability Scores | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
 | `adventuring.exploration` | Adventuring | 是 | 已索引 | 旧磨坊固定地点发现／移动；部分实现 | 场景测试通过 | M2：可扩展地点与探索动作 |
-| `adventuring.rest` | Adventuring → Resting | 是 | 已索引 | 一级战士短休与生命骰；部分实现 | 场景测试通过 | M2：长休及其他职业资源 |
+| `adventuring.rest` | Adventuring → Resting | 是 | 已索引 | 一级战士短休、长休、生命骰与 24 小时间隔；部分实现 | 场景／重放测试通过 | M2：中断裁定及其他职业资源 |
 | `combat.initiative_turn` | Combat → The Order of Combat | 是 | 已索引 | 固定双人先攻、回合、行动与附赠动作；部分实现 | 战斗／场景测试通过 | M2：完整行动经济 |
 | `combat.attack_damage` | Combat → Making an Attack / Damage and Healing | 是 | 已索引 | 单次攻击、自然 1／20、临时 HP；部分实现 | 战斗测试通过 | M2：攻击距离、状态、完整行动经济 |
 | `combat.movement_position` | Combat → Movement and Position | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |

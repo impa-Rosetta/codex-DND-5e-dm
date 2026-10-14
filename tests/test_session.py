@@ -1,4 +1,5 @@
 import importlib.util
+import json
 import sys
 import tempfile
 import unittest
@@ -135,6 +136,76 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(rest["payload"]["dice"][0]["raw"], [5])
         self.assertEqual(snapshot["character"]["resources"]["hit_dice_d10"]["current"], 0)
         self.assertEqual(snapshot["character"]["resources"]["second_wind"]["current"], 1)
+
+    def test_long_rest_restores_health_and_second_wind_after_encounter(self):
+        self._reach_forest()
+        initiative = iter([1, 20])
+        session.start_encounter(self.path, operation(), roller=lambda _: next(initiative))
+        goblin_attack = iter([20, 2, 2])
+        _, snapshot = session.attack(self.path, operation(), self.hero_id,
+                                     roller=lambda _: next(goblin_attack))
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 6)
+        session.advance_turn(self.path, operation())
+        session.second_wind(self.path, operation(), roller=lambda _: 1)
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != self.hero_id)
+        hero_attack = iter([20, 8, 8])
+        session.attack(self.path, operation(), goblin_id,
+                       roller=lambda _: next(hero_attack))
+        session.end_encounter(self.path, operation())
+        completed, snapshot = session.long_rest(self.path, operation())
+        self.assertEqual(completed["type"], "rest.long_completed")
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 12)
+        self.assertEqual(snapshot["character"]["resources"]["second_wind"]["current"], 1)
+        self.assertEqual(snapshot["world_time"], 480)
+        self.assertEqual(snapshot["last_long_rest_start"], 0)
+
+    def test_long_rest_restores_hit_die_once_and_replays(self):
+        session.short_rest(self.path, operation(), spend_hit_die=True, roller=lambda _: 1)
+        state.commit(self.path, operation(), "resource.changed",
+                     {"resource_id": "temp_hp", "after": 5})
+        before = state.load(self.path)[1]
+        self.assertEqual(before["character"]["resources"]["hit_dice_d10"]["current"], 0)
+        rest_op = operation()
+        first, snapshot = session.long_rest(self.path, rest_op)
+        self.assertEqual(snapshot["character"]["resources"]["hit_dice_d10"]["current"], 1)
+        self.assertEqual(snapshot["character"]["resources"]["temp_hp"]["current"], 0)
+        self.assertEqual(snapshot["world_time"], 540)
+        self.assertEqual(snapshot["last_long_rest_start"], 60)
+        repeated, _ = session.long_rest(self.path, rest_op)
+        self.assertEqual(first["event_id"], repeated["event_id"])
+        with self.assertRaises(session.SessionError):
+            session.long_rest(self.path, operation())
+        (self.path / "state.json").write_text(json.dumps(before), encoding="utf-8")
+        _, recovered, _ = state.load(self.path)
+        self.assertEqual(recovered["world_time"], 540)
+        self.assertEqual(recovered["last_long_rest_start"], 60)
+        self.assertEqual(recovered["character"]["resources"]["hit_dice_d10"]["current"], 1)
+        self.assertEqual(recovered["character"]["resources"]["temp_hp"]["current"], 0)
+
+    def test_long_rest_can_benefit_again_after_twenty_four_hours(self):
+        session.long_rest(self.path, operation())
+        for _ in range(16):
+            session.short_rest(self.path, operation())
+        self.assertEqual(state.load(self.path)[1]["world_time"], 1440)
+        _, snapshot = session.long_rest(self.path, operation())
+        self.assertEqual(snapshot["world_time"], 1920)
+        self.assertEqual(snapshot["last_long_rest_start"], 1440)
+
+    def test_long_rest_rejects_combat_and_zero_hp(self):
+        self._reach_forest()
+        initiative = iter([20, 1])
+        session.start_encounter(self.path, operation(), roller=lambda _: next(initiative))
+        with self.assertRaises(session.SessionError):
+            session.long_rest(self.path, operation())
+        # A separate campaign fixture exercises the zero-HP precondition.
+        other = Path(self.temp.name) / "unconscious"
+        state.create(other, "昏迷")
+        state.confirm_character(other, operation(), hero())
+        state.commit(other, operation(), "resource.changed",
+                     {"resource_id": "hp", "after": 0})
+        with self.assertRaises(session.SessionError):
+            session.long_rest(other, operation())
 
     def _knock_hero_unconscious(self):
         self._reach_forest()

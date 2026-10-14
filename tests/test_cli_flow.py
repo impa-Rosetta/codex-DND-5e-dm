@@ -40,6 +40,11 @@ class CliFlowTests(unittest.TestCase):
             self.assertEqual(confirmed["event"]["event_id"], again["event"]["event_id"])
             self.assertEqual(run("state.py", "load", campaign)["character"]["id"],
                              confirmed["state"]["character"]["id"])
+            rest_operation = str(uuid.uuid4())
+            rested = run("session.py", campaign, "long-rest", "--operation-id", rest_operation)
+            repeated = run("session.py", campaign, "long-rest", "--operation-id", rest_operation)
+            self.assertEqual(rested["event"]["event_id"], repeated["event"]["event_id"])
+            self.assertEqual(run("state.py", "load", campaign)["world_time"], 480)
 
 
 if __name__ == "__main__":

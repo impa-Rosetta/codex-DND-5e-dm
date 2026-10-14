@@ -270,6 +270,31 @@ def short_rest(directory, operation_id: str, *, spend_hit_die=False, roller=None
                     rules=["adventuring.rest", "class.fighter"])
 
 
+def long_rest(directory, operation_id: str):
+    def resolve(state, _events):
+        hero = _hero(state)
+        if state["combat"] is not None or hero["resources"]["hp"]["current"] < 1:
+            raise SessionError("Long rest requires a conscious character outside combat")
+        if hero.get("life_state") in ("dead", "stable"):
+            raise SessionError("Defeated character cannot take a long rest")
+        started_at = state["world_time"] or 0
+        last_start = state.get("last_long_rest_start")
+        if last_start is not None and started_at - last_start < 24 * 60:
+            raise SessionError("A character cannot benefit from another long rest within 24 hours")
+        resources = hero["resources"]
+        hit_dice = resources["hit_dice_d10"]
+        restored_dice = max(1, hit_dice["max"] // 2)
+        hit_dice_after = min(hit_dice["max"], hit_dice["current"] + restored_dice)
+        hp_after = resources["hp"]["max"]
+        return {"started_at": started_at, "completed_at": started_at + 8 * 60,
+                "hp_after": hp_after, "hit_dice_after": hit_dice_after,
+                "temp_hp_after": 0,
+                "public_view": {"summary": f"{hero['name']}完成长休，生命值恢复至{hp_after}，生命骰恢复至{hit_dice_after}颗。"}}
+
+    return transact(directory, operation_id, "rest.long_completed", resolve,
+                    rules=["adventuring.rest", "class.fighter"])
+
+
 def end_encounter(directory, operation_id: str):
     def resolve(state, _events):
         combat = state["combat"]
@@ -298,7 +323,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Audited old-mill session actions")
     parser.add_argument("directory")
     parser.add_argument("command", choices=("declare", "narrate", "check", "move", "start-combat",
-                                            "attack", "advance", "death-save", "second-wind", "short-rest", "end-combat"))
+                                            "attack", "advance", "death-save", "second-wind", "short-rest", "long-rest", "end-combat"))
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--text")
     parser.add_argument("--challenge-id")
@@ -318,6 +343,7 @@ def main(argv=None) -> int:
                 "second-wind": lambda: second_wind(args.directory, args.operation_id),
                 "short-rest": lambda: short_rest(args.directory, args.operation_id,
                                                   spend_hit_die=args.spend_hit_die),
+                "long-rest": lambda: long_rest(args.directory, args.operation_id),
                 "end-combat": lambda: end_encounter(args.directory, args.operation_id)}
     try:
         event, state = commands[args.command]()
