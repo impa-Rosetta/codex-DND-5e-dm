@@ -284,6 +284,145 @@ class SessionTests(unittest.TestCase):
         _, snapshot = session.end_encounter(self.path, operation())
         self.assertEqual(snapshot["character"]["life_state"], "stable")
 
+    def _start_hero_first(self):
+        self._reach_forest()
+        values = iter([20, 1])
+        _, snapshot = session.start_encounter(self.path, operation(), roller=lambda _: next(values))
+        return next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                    if unit["combatant_id"] != self.hero_id)
+
+    def test_movement_disengage_and_replay(self):
+        goblin_id = self._start_hero_first()
+        action, snapshot = session.combat_action(self.path, operation(), "disengage")
+        self.assertEqual(action["payload"]["action"], "disengage")
+        self.assertTrue(snapshot["combat"]["action_used"])
+        move_op = operation()
+        moved, snapshot = session.move_combat(self.path, move_op, [[-1, 0]])
+        self.assertEqual(snapshot["combat"]["combatants"][0]["position"], [-1, 0])
+        self.assertEqual(snapshot["combat"]["movement_used"], 5)
+        self.assertIsNone(moved["payload"]["opportunity_attack"])
+        self.assertFalse(next(u for u in snapshot["combat"]["combatants"]
+                              if u["combatant_id"] == goblin_id)["reaction_used"])
+        repeated, _ = session.move_combat(self.path, move_op, [[99, 99]],
+                                          roller=lambda _: self.fail("rerolled"))
+        self.assertEqual(repeated["event_id"], moved["event_id"])
+        self.assertEqual(state.load(self.path)[1]["combat"]["combatants"][0]["position"], [-1, 0])
+
+    def test_leaving_reach_triggers_one_reaction_attack(self):
+        goblin_id = self._start_hero_first()
+        rolls = iter([15, 3])
+        event, snapshot = session.move_combat(self.path, operation(), [[-1, 0]],
+                                               roller=lambda _: next(rolls))
+        oa = event["payload"]["opportunity_attack"]
+        self.assertEqual(oa["actor_combatant_id"], goblin_id)
+        self.assertEqual(oa["damage"], 5)
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 7)
+        self.assertTrue(next(u for u in snapshot["combat"]["combatants"]
+                             if u["combatant_id"] == goblin_id)["reaction_used"])
+        self.assertEqual(snapshot["combat"]["combatants"][0]["position"], [-1, 0])
+        session.move_combat(self.path, operation(), [[0, 0], [-1, 0]],
+                            roller=lambda _: self.fail("second reaction"))
+        self.assertEqual(state.load(self.path)[1]["character"]["resources"]["hp"]["current"], 7)
+
+    def test_dash_and_invalid_movement_do_not_mutate_state(self):
+        self._start_hero_first()
+        before = state.load(self.path)[1]["revision"]
+        for path in ([[1, 0]], [[2, 0]], [[0, 0]], [[0, True]]):
+            with self.subTest(path=path), self.assertRaises(session.SessionError):
+                session.move_combat(self.path, operation(), path)
+        self.assertEqual(state.load(self.path)[1]["revision"], before)
+        session.combat_action(self.path, operation(), "dash")
+        path = [[0, i] for i in range(1, 13)]
+        moved, snapshot = session.move_combat(self.path, operation(), path)
+        self.assertEqual(moved["payload"]["feet"], 60)
+        self.assertEqual(snapshot["combat"]["movement_used"], 60)
+        with self.assertRaises(session.SessionError):
+            session.move_combat(self.path, operation(), [[0, 13]])
+
+    def test_dodge_disadvantages_next_attack_until_own_turn(self):
+        self._start_hero_first()
+        session.combat_action(self.path, operation(), "dodge")
+        session.advance_turn(self.path, operation())
+        rolls = iter([18, 2])
+        event, snapshot = session.attack(self.path, operation(), self.hero_id,
+                                          roller=lambda _: next(rolls))
+        self.assertFalse(event["payload"]["hit"])
+        self.assertEqual(event["payload"]["dice"][0]["raw"], [18, 2])
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 12)
+        session.advance_turn(self.path, operation())
+        self.assertFalse(next(u for u in state.load(self.path)[1]["combat"]["combatants"]
+                              if u["combatant_id"] == self.hero_id)["dodging"])
+
+    def test_opportunity_attack_can_stop_movement_at_zero_hp(self):
+        self._reach_forest()
+        initiative = iter([1, 20])
+        session.start_encounter(self.path, operation(), roller=lambda _: next(initiative))
+        first_hit = iter([20, 3, 4])
+        _, snapshot = session.attack(self.path, operation(), self.hero_id,
+                                     roller=lambda _: next(first_hit))
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 3)
+        session.advance_turn(self.path, operation())
+        rolls = iter([15, 3])
+        event, snapshot = session.move_combat(self.path, operation(), [[-1, 0]],
+                                               roller=lambda _: next(rolls))
+        self.assertEqual(event["payload"]["feet"], 0)
+        actor = next(u for u in snapshot["combat"]["combatants"] if u["combatant_id"] == self.hero_id)
+        self.assertEqual(actor["position"], [0, 0])
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 0)
+        self.assertEqual(snapshot["combat"]["death_saves"]["failures"], 0)
+        self.assertEqual(next(u for u in state.load(self.path)[1]["combat"]["combatants"]
+                              if u["combatant_id"] == self.hero_id)["position"], [0, 0])
+
+    def test_melee_hit_against_unconscious_hero_is_critical_and_two_failures(self):
+        self._knock_hero_unconscious()
+        session.death_save(self.path, operation(), roller=lambda _: 10)
+        session.advance_turn(self.path, operation())
+        rolls = iter([15, 2, 2, 3])
+        event, snapshot = session.attack(self.path, operation(), self.hero_id,
+                                          roller=lambda _: next(rolls))
+        self.assertTrue(event["payload"]["critical"])
+        self.assertEqual(event["payload"]["dice"][0]["raw"], [15, 2])
+        self.assertEqual(event["payload"]["damage"], 7)
+        self.assertEqual(snapshot["combat"]["death_saves"]["failures"], 2)
+        self.assertEqual(snapshot["combat"]["death_saves"]["successes"], 1)
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 0)
+        self.assertEqual(state.load(self.path)[1]["combat"]["death_saves"]["failures"], 2)
+
+    def test_damage_at_zero_equal_to_maximum_causes_instant_death(self):
+        self._knock_hero_unconscious()
+        session.death_save(self.path, operation(), roller=lambda _: 10)
+        session.advance_turn(self.path, operation())
+        rolls = iter([15, 2, 6, 6])
+        _, snapshot = session.attack(self.path, operation(), self.hero_id,
+                                     roller=lambda _: next(rolls))
+        self.assertTrue(snapshot["combat"]["death_saves"]["dead"])
+        _, snapshot = session.end_encounter(self.path, operation())
+        self.assertEqual(snapshot["character"]["life_state"], "dead")
+
+    def test_stable_hero_recovers_after_audited_hours_and_can_rest(self):
+        self._knock_hero_unconscious()
+        for index in range(3):
+            if index:
+                session.advance_turn(self.path, operation())
+                session.advance_turn(self.path, operation())
+            session.death_save(self.path, operation(), roller=lambda _: 10)
+        session.end_encounter(self.path, operation())
+        recover_op = operation()
+        recovered, snapshot = session.recover_stable(self.path, recover_op, roller=lambda _: 4)
+        self.assertEqual(recovered["payload"]["dice"][0]["raw"], [4])
+        self.assertEqual(snapshot["world_time"], 240)
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 1)
+        self.assertEqual(snapshot["character"]["life_state"], "alive")
+        repeated, _ = session.recover_stable(self.path, recover_op,
+                                              roller=lambda _: self.fail("rerolled"))
+        self.assertEqual(recovered["event_id"], repeated["event_id"])
+        self.assertEqual(state.load(self.path)[1]["character"]["resources"]["hp"]["current"], 1)
+        session.short_rest(self.path, operation(), spend_hit_die=True, roller=lambda _: 5)
+
+    def test_stable_recovery_rejects_conscious_hero(self):
+        with self.assertRaises(session.SessionError):
+            session.recover_stable(self.path, operation(), roller=lambda _: 1)
+
 
 if __name__ == "__main__":
     unittest.main()

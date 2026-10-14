@@ -170,8 +170,12 @@ def attack(directory, operation_id: str, target_id: str, *, mode="normal", rolle
                            abs(actor["position"][1] - target["position"][1]))
         if distance > weapon["reach"]:
             raise SessionError("Target is outside weapon reach")
+        unconscious_target = target_id == hero["id"] and target["hp"] == 0
+        if unconscious_target and (combat.get("death_saves") or {}).get("dead"):
+            raise SessionError("Character is already dead")
         outcome = resolve_attack(combat, actor["combatant_id"], target_id, weapon,
-                                 mode=mode, roller=roller)
+                                 mode=mode, roller=roller,
+                                 target_unconscious=unconscious_target)
         if target_id == hero["id"] and outcome["hp_after"] == 0 and outcome["hp_before"] > 0:
             effective_damage = outcome["damage"] - (outcome["temp_hp_before"] - outcome["temp_hp_after"])
             remaining = effective_damage - outcome["hp_before"]
@@ -179,10 +183,108 @@ def attack(directory, operation_id: str, target_id: str, *, mode="normal", rolle
             outcome["death_saves_after"] = {"successes": 0, "failures": 0,
                                              "stable": False, "dead": dead}
             outcome["public_view"]["summary"] += (" 角色遭受即死伤害。" if dead else " 角色失去意识。")
+        elif unconscious_target and outcome["hit"]:
+            effective_damage = outcome["damage"] - (outcome["temp_hp_before"] - outcome["temp_hp_after"])
+            if effective_damage > 0:
+                before = combat.get("death_saves") or {"successes": 0, "failures": 0,
+                                                        "stable": False, "dead": False}
+                after = dict(before)
+                after["stable"] = False
+                after["failures"] += 2 if outcome["critical"] else 1
+                after["dead"] = after["failures"] >= 3 or effective_damage >= hero["resources"]["hp"]["max"]
+                outcome["death_saves_after"] = after
+                outcome["public_view"]["summary"] += (" 角色死亡。" if after["dead"] else
+                                                       f" 死亡豁免失败累计{after['failures']}次。")
         return outcome
 
     return transact(directory, operation_id, "combat.attack_resolved", resolve,
                     rules=["combat.attack_damage"])
+
+
+def combat_action(directory, operation_id: str, action: str):
+    if action not in ("dash", "disengage", "dodge"):
+        raise SessionError("Unsupported combat action")
+
+    def resolve(state, _events):
+        hero = _hero(state)
+        combat = state["combat"]
+        if combat is None:
+            raise SessionError("No active combat")
+        actor = combat["combatants"][combat["turn_index"]]
+        if actor["combatant_id"] != hero["id"] or actor["hp"] <= 0:
+            raise SessionError("Combat action requires a conscious hero's turn")
+        if combat["action_used"]:
+            raise SessionError("Action already used this turn")
+        return {"actor_combatant_id": hero["id"], "action": action,
+                "public_view": {"summary": f"{hero['name']}采取{action}动作。"}}
+
+    return transact(directory, operation_id, "combat.action_taken", resolve,
+                    rules=["combat.initiative_turn", "combat.movement_position"])
+
+
+def move_combat(directory, operation_id: str, path: list, *, roller=None):
+    """Walk a 5-foot square path in the old-mill open encounter grid."""
+    def resolve(state, _events):
+        hero = _hero(state)
+        combat = state["combat"]
+        if combat is None:
+            raise SessionError("No active combat")
+        actor = combat["combatants"][combat["turn_index"]]
+        if actor["combatant_id"] != hero["id"] or actor["hp"] <= 0:
+            raise SessionError("Movement requires a conscious hero's turn")
+        if not isinstance(path, list) or not 1 <= len(path) <= 100:
+            raise SessionError("Path requires one or more grid squares")
+        origin = list(actor["position"])
+        previous = origin
+        for square in path:
+            if (not isinstance(square, list) or len(square) != 2 or
+                    any(type(n) is not int or abs(n) > 100 for n in square) or
+                    max(abs(square[0] - previous[0]), abs(square[1] - previous[1])) != 1):
+                raise SessionError("Path must use adjacent 5-foot grid squares")
+            if any(unit["combatant_id"] != hero["id"] and unit["hp"] > 0 and
+                   unit["position"] == square for unit in combat["combatants"]):
+                raise SessionError("Cannot enter a hostile occupied square")
+            previous = square
+        feet = 5 * len(path)
+        allowed = actor["speed"] * (2 if actor.get("dashed") else 1)
+        if combat["movement_used"] + feet > allowed:
+            raise SessionError("Movement exceeds this turn's speed")
+        enemy = next((unit for unit in combat["combatants"]
+                      if unit["combatant_id"] != hero["id"] and unit["hp"] > 0), None)
+        opportunity = None
+        traveled = []
+        previous = origin
+        for square in path:
+            leaving_reach = (enemy is not None and not actor.get("disengaged") and
+                             not enemy.get("reaction_used") and
+                             max(abs(previous[0] - enemy["position"][0]),
+                                 abs(previous[1] - enemy["position"][1])) == 1 and
+                             max(abs(square[0] - enemy["position"][0]),
+                                 abs(square[1] - enemy["position"][1])) > 1)
+            if leaving_reach:
+                opportunity = resolve_attack(combat, enemy["combatant_id"], hero["id"],
+                                             GOBLIN["attack"], roller=roller, reaction=True)
+                if opportunity["hp_after"] == 0:
+                    remaining = (opportunity["damage"] -
+                                 (opportunity["temp_hp_before"] - opportunity["temp_hp_after"]) -
+                                 opportunity["hp_before"])
+                    opportunity["death_saves_after"] = {
+                        "successes": 0, "failures": 0, "stable": False,
+                        "dead": remaining >= hero["resources"]["hp"]["max"]}
+                    break
+            traveled.append(square)
+            previous = square
+        return {"actor_combatant_id": hero["id"], "from": origin,
+                "to": traveled[-1] if traveled else origin,
+                "path": traveled, "feet": 5 * len(traveled),
+                "opportunity_attack": opportunity,
+                "public_view": {"summary": f"{hero['name']}移动了{5 * len(traveled)}英尺。" +
+                                (" 触发借机攻击。" if opportunity else ""),
+                                "position": traveled[-1] if traveled else origin,
+                                "opportunity_attack": opportunity["public_view"] if opportunity else None}}
+
+    return transact(directory, operation_id, "combat.move_resolved", resolve,
+                    rules=["combat.movement_position", "combat.opportunity_attack"])
 
 
 def death_save(directory, operation_id: str, *, roller=None):
@@ -317,18 +419,39 @@ def end_encounter(directory, operation_id: str):
                     rules=["combat.initiative_turn"])
 
 
+def recover_stable(directory, operation_id: str, *, roller=None):
+    """Resolve the SRD's 1d4-hour spontaneous recovery after a stable defeat."""
+    def resolve(state, _events):
+        hero = _hero(state)
+        if (state["combat"] is not None or hero.get("life_state") != "stable" or
+                hero["resources"]["hp"]["current"] != 0):
+            raise SessionError("Stable recovery requires a stable hero outside combat")
+        dice = roll_dice("d4", purpose="stable_recovery_hours", roller=roller)
+        before = state["world_time"] or 0
+        after = before + dice["total"] * 60
+        return {"dice": [dice], "hours": dice["total"], "started_at": before,
+                "completed_at": after, "hp_after": 1,
+                "public_view": {"summary": f"{hero['name']}在{dice['total']}小时后恢复意识，生命值为1。"}}
+
+    return transact(directory, operation_id, "character.stable_recovered", resolve,
+                    rules=["combat.death_saves", "adventuring.rest"])
+
+
 def main(argv=None) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="Audited old-mill session actions")
     parser.add_argument("directory")
     parser.add_argument("command", choices=("declare", "narrate", "check", "move", "start-combat",
-                                            "attack", "advance", "death-save", "second-wind", "short-rest", "long-rest", "end-combat"))
+                                            "attack", "combat-action", "combat-move", "advance", "death-save",
+                                            "second-wind", "short-rest", "long-rest", "end-combat", "recover-stable"))
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--text")
     parser.add_argument("--challenge-id")
     parser.add_argument("--location-id")
     parser.add_argument("--target-id")
+    parser.add_argument("--action", choices=("dash", "disengage", "dodge"))
+    parser.add_argument("--path", help="JSON array of adjacent [x,y] grid squares")
     parser.add_argument("--mode", choices=("normal", "advantage", "disadvantage"), default="normal")
     parser.add_argument("--spend-hit-die", action="store_true")
     args = parser.parse_args(argv)
@@ -338,6 +461,9 @@ def main(argv=None) -> int:
                 "move": lambda: move_scene(args.directory, args.operation_id, args.location_id),
                 "start-combat": lambda: start_encounter(args.directory, args.operation_id),
                 "attack": lambda: attack(args.directory, args.operation_id, args.target_id, mode=args.mode),
+                "combat-action": lambda: combat_action(args.directory, args.operation_id, args.action),
+                "combat-move": lambda: move_combat(args.directory, args.operation_id,
+                                                     json.loads(args.path) if args.path else None),
                 "advance": lambda: advance_turn(args.directory, args.operation_id),
                 "death-save": lambda: death_save(args.directory, args.operation_id),
                 "second-wind": lambda: second_wind(args.directory, args.operation_id),
@@ -345,6 +471,7 @@ def main(argv=None) -> int:
                                                   spend_hit_die=args.spend_hit_die),
                 "long-rest": lambda: long_rest(args.directory, args.operation_id),
                 "end-combat": lambda: end_encounter(args.directory, args.operation_id)}
+    commands["recover-stable"] = lambda: recover_stable(args.directory, args.operation_id)
     try:
         event, state = commands[args.command]()
     except (SessionError, StateError, CombatError, ValueError, KeyError, TypeError) as exc:

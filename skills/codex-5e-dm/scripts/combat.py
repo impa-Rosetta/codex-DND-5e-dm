@@ -34,6 +34,10 @@ def make_initiative(combatants: list[dict], *, roller=None) -> dict:
         scored["initiative_roll"] = roll_dice(
             f"d20{unit['initiative_bonus']:+d}", purpose="initiative", roller=roller)
         scored.setdefault("temp_hp", 0)
+        scored.setdefault("reaction_used", False)
+        scored.setdefault("dodging", False)
+        scored.setdefault("disengaged", False)
+        scored.setdefault("dashed", False)
         units.append(scored)
     # The old-mill DM chooses player-first on a PC/monster tie. Preserve the
     # caller's declared order; Dexterity is not an automatic SRD tie-breaker.
@@ -44,16 +48,22 @@ def make_initiative(combatants: list[dict], *, roller=None) -> dict:
 
 
 def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
-                   *, mode: str = "normal", roller=None) -> dict:
+                   *, mode: str = "normal", roller=None, reaction: bool = False,
+                   target_unconscious: bool = False) -> dict:
     if not combat or not combat.get("combatants"):
         raise CombatError("No active combat")
-    acting = combat["combatants"][combat["turn_index"]]
-    if acting["combatant_id"] != actor_id:
+    current = combat["combatants"][combat["turn_index"]]
+    acting = _actor(combat, actor_id) if reaction else current
+    if reaction and (current["combatant_id"] == actor_id or acting.get("reaction_used")):
+        raise CombatError("Opportunity attack reaction unavailable")
+    if not reaction and acting["combatant_id"] != actor_id:
         raise CombatError("It is not this combatant's turn")
-    if combat["action_used"]:
+    if not reaction and combat["action_used"]:
         raise CombatError("Action already used this turn")
     target = _actor(combat, target_id)
-    if actor_id == target_id or acting["hp"] <= 0 or target["hp"] <= 0:
+    if (actor_id == target_id or acting["hp"] <= 0 or target["hp"] < 0 or
+            (target["hp"] == 0 and not target_unconscious) or
+            (target_unconscious and target["hp"] != 0)):
         raise CombatError("Invalid attack target")
     if not all(isinstance(weapon.get(field), int) for field in ("attack_bonus", "damage_bonus", "damage_die")):
         raise CombatError("Weapon requires numeric bonuses and die")
@@ -62,10 +72,15 @@ def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
     die = weapon["damage_die"]
     if not 1 <= die <= 100 or not -20 <= attack_bonus <= 50 or not -20 <= damage_bonus <= 50:
         raise CombatError("Weapon values outside supported range")
-    attack = roll_dice(f"d20{attack_bonus:+d}", purpose="attack", mode=mode, roller=roller)
+    if target_unconscious:
+        mode = "normal" if mode == "disadvantage" else "advantage"
+    elif target.get("dodging"):
+        mode = "normal" if mode == "advantage" else "disadvantage"
+    attack = roll_dice(f"d20{attack_bonus:+d}", purpose="opportunity_attack" if reaction else "attack",
+                       mode=mode, roller=roller)
     natural = attack["natural_d20"]
     hit = natural == 20 or (natural != 1 and attack["total"] >= target["ac"])
-    critical = natural == 20
+    critical = hit and (natural == 20 or target_unconscious)
     damage = None
     amount = 0
     if hit:

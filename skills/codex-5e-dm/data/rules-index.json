@@ -69,6 +69,7 @@
     {"id":"combat.initiative_turn","kind":"rule","section":"Combat > The Order of Combat","m2_required":true,"status":"indexed_only"},
     {"id":"combat.attack_damage","kind":"rule","section":"Combat > Making an Attack / Damage and Healing","m2_required":true,"status":"indexed_only"},
     {"id":"combat.movement_position","kind":"rule","section":"Combat > Movement and Position","m2_required":true,"status":"indexed_only"},
+    {"id":"combat.opportunity_attack","kind":"rule","section":"Combat > Melee Attacks > Opportunity Attacks","m2_required":true,"status":"indexed_only"},
     {"id":"combat.conditions","kind":"section","section":"Conditions","m2_required":true,"status":"indexed_only"},
     {"id":"combat.death_saves","kind":"rule","section":"Combat > Dropping to 0 Hit Points","m2_required":true,"status":"indexed_only"},
     {"id":"equipment.weapons_armor","kind":"section","section":"Equipment","m2_required":true,"status":"indexed_only"},

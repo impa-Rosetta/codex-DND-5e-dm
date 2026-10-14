@@ -158,6 +158,17 @@ def apply_event(state: dict, event: dict) -> dict:
         elif payload.get("outcome") == "defeat_stable":
             result["character"]["life_state"] = "stable"
         result["combat"] = None
+    elif kind == "character.stable_recovered":
+        character = result["character"]
+        if (result["combat"] is not None or character.get("life_state") != "stable" or
+                character["resources"]["hp"]["current"] != 0 or
+                payload["started_at"] != (result["world_time"] or 0) or
+                payload["completed_at"] != payload["started_at"] + payload["hours"] * 60 or
+                not 1 <= payload["hours"] <= 4):
+            raise StateError("Invalid stable recovery event")
+        character["resources"]["hp"]["current"] = 1
+        character["life_state"] = "alive"
+        result["world_time"] = payload["completed_at"]
     elif kind == "check.resolved":
         location_id = payload.get("discovered_location_id")
         if payload.get("success") and location_id:
@@ -182,13 +193,47 @@ def apply_event(state: dict, event: dict) -> dict:
             raise StateError("Unknown target combatant")
         result["combat"]["action_used"] = True
     elif kind == "turn.advanced":
+        previous_actor = result["combat"]["combatants"][result["combat"]["turn_index"]]
+        previous_actor["disengaged"] = False
+        previous_actor["dashed"] = False
         result["combat"]["turn_index"] = payload["turn_index"]
         result["combat"]["round"] = payload["round"]
+        next_actor = result["combat"]["combatants"][payload["turn_index"]]
+        next_actor["dodging"] = False
+        next_actor["reaction_used"] = False
         result["combat"]["action_used"] = False
         result["combat"]["bonus_action_used"] = False
         result["combat"]["reaction_used"] = False
         result["combat"]["movement_used"] = 0
         result["combat"]["death_save_made"] = False
+    elif kind == "combat.action_taken":
+        combat = result["combat"]
+        actor = combat["combatants"][combat["turn_index"]]
+        if actor["combatant_id"] != payload["actor_combatant_id"] or combat["action_used"]:
+            raise StateError("Invalid combat action actor or action economy")
+        actor[{"dash": "dashed", "disengage": "disengaged", "dodge": "dodging"}[payload["action"]]] = True
+        combat["action_used"] = True
+    elif kind == "combat.move_resolved":
+        combat = result["combat"]
+        actor = combat["combatants"][combat["turn_index"]]
+        if actor["combatant_id"] != payload["actor_combatant_id"] or actor["position"] != payload["from"]:
+            raise StateError("Invalid combat movement actor or origin")
+        opportunity = payload.get("opportunity_attack")
+        if opportunity is not None:
+            enemy = next((unit for unit in combat["combatants"]
+                          if unit["combatant_id"] == opportunity["actor_combatant_id"]), None)
+            if enemy is None or enemy.get("reaction_used"):
+                raise StateError("Invalid opportunity attack reaction")
+            enemy["reaction_used"] = True
+            actor["hp"] = opportunity["hp_after"]
+            actor["temp_hp"] = opportunity["temp_hp_after"]
+            resources = result["character"]["resources"]
+            resources["hp"]["current"] = opportunity["hp_after"]
+            resources["temp_hp"]["current"] = opportunity["temp_hp_after"]
+            if "death_saves_after" in opportunity:
+                combat["death_saves"] = copy.deepcopy(opportunity["death_saves_after"])
+        actor["position"] = copy.deepcopy(payload["to"])
+        combat["movement_used"] += payload["feet"]
     elif kind == "combat.death_save_resolved":
         result["combat"]["death_saves"] = copy.deepcopy(payload["death_saves_after"])
         result["combat"]["death_save_made"] = True

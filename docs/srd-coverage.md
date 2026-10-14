@@ -22,9 +22,10 @@
 | `adventuring.rest` | Adventuring → Resting | 是 | 已索引 | 一级战士短休、长休、生命骰与 24 小时间隔；部分实现 | 场景／重放测试通过 | M2：中断裁定及其他职业资源 |
 | `combat.initiative_turn` | Combat → The Order of Combat | 是 | 已索引 | 固定双人先攻、回合、行动与附赠动作；部分实现 | 战斗／场景测试通过 | M2：完整行动经济 |
 | `combat.attack_damage` | Combat → Making an Attack / Damage and Healing | 是 | 已索引 | 单次攻击、自然 1／20、临时 HP；部分实现 | 战斗测试通过 | M2：攻击距离、状态、完整行动经济 |
-| `combat.movement_position` | Combat → Movement and Position | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
+| `combat.movement_position` | Combat → Movement and Position | 是 | 已索引 | 固定开阔格网中玩家逐格移动、疾走／撤离／闪避；部分实现 | 场景／重放测试通过 | M2：哥布林主动移动、复杂地形与其他动作 |
+| `combat.opportunity_attack` | Combat → Melee Attacks → Opportunity Attacks | 是 | 已索引 | 固定哥布林对离开触及范围的玩家以反应攻击；部分实现 | 场景／重放测试通过 | M2：玩家借机攻击、其他敌人、可见性与特殊触及范围 |
 | `combat.conditions` | Conditions | 是，样例所需状态 | 已索引 | 未结构化 | 未测试 | M3：全部 SRD 状态 |
-| `combat.death_saves` | Combat → Dropping to 0 Hit Points | 是 | 已索引 | 固定遭遇的即死判定、死亡豁免与胜负退出；部分实现 | 场景测试通过 | M2：0 HP 后续伤害、急救／治疗及稳定后苏醒 |
+| `combat.death_saves` | Combat → Dropping to 0 Hit Points | 是 | 已索引 | 固定遭遇的即死判定、死亡豁免、零 HP 后续近战伤害、稳定后自发苏醒与胜负退出；部分实现 | 场景／重放测试通过 | M2：急救／治疗及更多来源伤害 |
 | `equipment.weapons_armor` | Equipment | 是，全部一级起始选项 | 已索引 | 战士固定合法起始包的链甲／盾牌／长剑／手斧；部分实现 | 建卡／战斗测试通过 | M2：全部一级起始装备；M3：其余装备 |
 | `magic.spellcasting` | Spellcasting | 是，一级施法 | 已索引 | 未结构化 | 未测试 | M2：一级施法；M3：更高等级与完整规则 |
 | `magic.spells` | Spells | 是，一级可选法术 | 已索引 | 未结构化 | 未测试 | M2：一级合法选项；M3：其余法术 |
