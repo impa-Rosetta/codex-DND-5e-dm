@@ -25,7 +25,7 @@
     {"id":"cleric","section":"Classes > Cleric","status":"indexed_only"},
     {"id":"druid","section":"Classes > Druid","status":"indexed_only"},
     {"id":"fighter","section":"Classes > Fighter","status":"buildable"},
-    {"id":"monk","section":"Classes > Monk","status":"indexed_only"},
+      {"id":"monk","section":"Classes > Monk","status":"buildable"},
     {"id":"paladin","section":"Classes > Paladin","status":"indexed_only"},
     {"id":"ranger","section":"Classes > Ranger","status":"indexed_only"},
       {"id":"rogue","section":"Classes > Rogue","status":"buildable"},

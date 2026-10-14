@@ -52,7 +52,8 @@ def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
                    target_unconscious: bool = False,
                    extra_disadvantage: bool = False,
                    damage_resistance: bool = False,
-                   sneak_attack_on_advantage: bool = False) -> dict:
+                   sneak_attack_on_advantage: bool = False,
+                   bonus_action_attack: bool = False) -> dict:
     if not combat or not combat.get("combatants"):
         raise CombatError("No active combat")
     current = combat["combatants"][combat["turn_index"]]
@@ -61,8 +62,12 @@ def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
         raise CombatError("Opportunity attack reaction unavailable")
     if not reaction and acting["combatant_id"] != actor_id:
         raise CombatError("It is not this combatant's turn")
-    if not reaction and combat["action_used"]:
-        raise CombatError("Action already used this turn")
+    if not reaction:
+        if bonus_action_attack:
+            if not combat["action_used"] or combat["bonus_action_used"]:
+                raise CombatError("Bonus attack unavailable")
+        elif combat["action_used"]:
+            raise CombatError("Action already used this turn")
     target = _actor(combat, target_id)
     if (actor_id == target_id or acting["hp"] <= 0 or target["hp"] < 0 or
             (target["hp"] == 0 and not target_unconscious) or

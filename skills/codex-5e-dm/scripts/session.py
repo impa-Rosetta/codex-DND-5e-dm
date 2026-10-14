@@ -225,10 +225,36 @@ def attack(directory, operation_id: str, target_id: str, *, mode="normal", rolle
                 outcome["death_saves_after"] = after
                 outcome["public_view"]["summary"] += (" 角色死亡。" if after["dead"] else
                                                        f" 死亡豁免失败累计{after['failures']}次。")
+        if actor["combatant_id"] == hero["id"] and hero["source_choices"]["class"] == "monk":
+            outcome["monk_attack_ready"] = True
         return outcome
 
     return transact(directory, operation_id, "combat.attack_resolved", resolve,
                     rules=["combat.attack_damage"])
+
+
+def martial_arts(directory, operation_id: str, target_id: str, *, mode="normal", roller=None):
+    def resolve(state, _events):
+        hero = _hero(state)
+        combat = state["combat"]
+        if hero["source_choices"]["class"] != "monk":
+            raise SessionError("Martial Arts is a monk feature")
+        if combat is None or combat["combatants"][combat["turn_index"]]["combatant_id"] != hero["id"]:
+            raise SessionError("Martial Arts requires your turn")
+        if not combat.get("monk_attack_ready") or combat["bonus_action_used"]:
+            raise SessionError("First take the Attack action with a monk weapon")
+        actor = combat["combatants"][combat["turn_index"]]
+        target = next((unit for unit in combat["combatants"] if unit["combatant_id"] == target_id), None)
+        if target is None or max(abs(actor["position"][0] - target["position"][0]),
+                                 abs(actor["position"][1] - target["position"][1])) > 1:
+            raise SessionError("Target is outside unarmed reach")
+        outcome = resolve_attack(combat, hero["id"], target_id, hero["derived"]["attacks"][1],
+                                 mode=mode, roller=roller, bonus_action_attack=True)
+        outcome["bonus_action_attack"] = True
+        return outcome
+
+    return transact(directory, operation_id, "combat.attack_resolved", resolve,
+                    rules=["combat.attack_damage", "class.monk.martial_arts"])
 
 
 def combat_action(directory, operation_id: str, action: str):
@@ -544,7 +570,7 @@ def main(argv=None) -> int:
     parser.add_argument("directory")
     parser.add_argument("command", choices=("declare", "narrate", "check", "move", "start-combat",
                                             "attack", "combat-action", "combat-move", "advance", "death-save",
-                                            "second-wind", "rage", "short-rest", "long-rest", "end-combat", "recover-stable",
+                                            "second-wind", "rage", "martial-arts", "short-rest", "long-rest", "end-combat", "recover-stable",
                                             "search-battlefield"))
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--text")
@@ -572,6 +598,8 @@ def main(argv=None) -> int:
                 "death-save": lambda: death_save(args.directory, args.operation_id),
                 "second-wind": lambda: second_wind(args.directory, args.operation_id),
                 "rage": lambda: rage(args.directory, args.operation_id),
+                "martial-arts": lambda: martial_arts(args.directory, args.operation_id,
+                                                     args.target_id, mode=args.mode),
                 "short-rest": lambda: short_rest(args.directory, args.operation_id,
                                                   spend_hit_die=args.spend_hit_die),
                 "long-rest": lambda: long_rest(args.directory, args.operation_id),

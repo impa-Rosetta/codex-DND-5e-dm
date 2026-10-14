@@ -680,6 +680,34 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(snapshot["character"]["resources"]["hit_dice_d8"]["current"], 0)
         self.assertEqual(state.load(path)[1]["revision"], snapshot["revision"])
 
+    def test_monk_bonus_unarmed_strike_requires_prior_attack(self):
+        path = Path(self.temp.name) / "monk"
+        state.create(path, "武僧")
+        choices = hero()
+        choices.update(**{"class": "monk", "class_skills": ["acrobatics", "stealth"],
+                          "monk_tool": "flute", "armor": "none", "shield": False,
+                          "weapon": "shortsword"})
+        del choices["fighting_style"]
+        state.confirm_character(path, operation(), choices)
+        session.check(path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(path, operation(), "forest_path")
+        initiative = iter([20, 1])
+        _, snapshot = session.start_encounter(path, operation(), roller=lambda _: next(initiative))
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != snapshot["character"]["id"])
+        with self.assertRaises(session.SessionError):
+            session.martial_arts(path, operation(), goblin_id)
+        first = iter([11, 1])
+        session.attack(path, operation(), goblin_id, roller=lambda _: next(first))
+        second = iter([11, 1])
+        strike, snapshot = session.martial_arts(path, operation(), goblin_id,
+                                                roller=lambda _: next(second))
+        self.assertEqual(strike["payload"]["damage"], 3)
+        self.assertEqual(snapshot["combat"]["combatants"][1]["hp"], 1)
+        self.assertTrue(snapshot["combat"]["bonus_action_used"])
+        with self.assertRaises(session.SessionError):
+            session.martial_arts(path, operation(), goblin_id)
+
 
 if __name__ == "__main__":
     unittest.main()

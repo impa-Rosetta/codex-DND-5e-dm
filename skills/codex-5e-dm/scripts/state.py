@@ -225,7 +225,13 @@ def apply_event(state: dict, event: dict) -> dict:
                 break
         else:
             raise StateError("Unknown target combatant")
-        result["combat"]["action_used"] = True
+        if payload.get("bonus_action_attack"):
+            result["combat"]["bonus_action_used"] = True
+            result["combat"]["monk_attack_ready"] = False
+        else:
+            result["combat"]["action_used"] = True
+            if payload.get("monk_attack_ready"):
+                result["combat"]["monk_attack_ready"] = True
         if target == result["character"]["id"] and payload["hp_after"] == 0:
             result["combat"]["rage_active"] = False
     elif kind == "turn.advanced":
@@ -249,6 +255,7 @@ def apply_event(state: dict, event: dict) -> dict:
         result["combat"]["movement_used"] = 0
         result["combat"]["death_save_made"] = False
         result["combat"]["sneak_attack_used"] = False
+        result["combat"]["monk_attack_ready"] = False
     elif kind == "combat.action_taken":
         combat = result["combat"]
         actor = combat["combatants"][combat["turn_index"]]
