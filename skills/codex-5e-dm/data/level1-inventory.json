@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "ruleset": "srd-5.1-2014",
+  "source": "https://media.dndbeyond.com/compendium-images/srd/5.1/SRD_CC_v5.1.pdf",
+  "status": "partial_index",
+  "race_ids": [
+    "dwarf_hill", "dwarf_mountain", "elf_high", "elf_wood", "elf_drow",
+    "halfling_lightfoot", "halfling_stout", "human", "dragonborn",
+    "gnome_forest", "gnome_rock", "half_elf", "half_orc", "tiefling"
+  ],
+  "class_ids": [
+    "barbarian", "bard", "cleric", "druid", "fighter", "monk",
+    "paladin", "ranger", "rogue", "sorcerer", "warlock", "wizard"
+  ],
+  "background_ids": ["acolyte", "custom_background"],
+  "level1_subclass_ids": [
+    "class.cleric.life_domain", "class.sorcerer.draconic_bloodline",
+    "class.warlock.fiend"
+  ],
+  "ability_methods": ["standard_array", "point_buy", "rolled_4d6_drop_lowest"],
+  "dragonborn_ancestry_ids": ["black", "blue", "brass", "bronze", "copper", "gold", "green", "red", "silver", "white"],
+  "fighter_style_ids": ["archery", "defense", "dueling", "great_weapon_fighting", "protection", "two_weapon_fighting"],
+  "equipment_branches": {"status": "not_frozen", "section": "Classes > Equipment / Equipment"},
+  "cantrips_and_level1_spells": {"status": "not_frozen", "section": "Spell Lists"},
+  "other_level1_choices": {"status": "not_frozen", "examples": [
+    "ranger favored enemy and terrain", "sorcerer draconic ancestry",
+    "warlock spells", "class skills and tools"
+  ]}
+}

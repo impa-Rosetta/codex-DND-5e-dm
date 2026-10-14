@@ -35,6 +35,7 @@ python skills/codex-5e-dm/display/server.py <独立战役目录> --port 8765
 - [设计规格](docs/design.md)
 - [M1–M2 实施计划](docs/m1-m2-plan.md)
 - [SRD 5.1 覆盖矩阵](docs/srd-coverage.md)
+- [一级选项对账清单（部分冻结）](docs/level1-options-inventory.md)
 - [战役数据与事件契约](docs/data-contract.md)
 - [规则与架构决定](docs/decisions.md)
 - [M2 实际覆盖与缺口](docs/m2-status.md)
