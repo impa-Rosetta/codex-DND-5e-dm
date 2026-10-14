@@ -27,7 +27,7 @@
     {"id":"fighter","section":"Classes > Fighter","status":"buildable"},
       {"id":"monk","section":"Classes > Monk","status":"buildable"},
       {"id":"paladin","section":"Classes > Paladin","status":"buildable"},
-    {"id":"ranger","section":"Classes > Ranger","status":"indexed_only"},
+      {"id":"ranger","section":"Classes > Ranger","status":"buildable"},
       {"id":"rogue","section":"Classes > Rogue","status":"buildable"},
     {"id":"sorcerer","section":"Classes > Sorcerer","status":"indexed_only"},
     {"id":"warlock","section":"Classes > Warlock","status":"indexed_only"},

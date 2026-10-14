@@ -35,6 +35,17 @@ class SessionTests(unittest.TestCase):
         self.assertIn("forest_path", snapshot["scene"]["discovered_locations"])
         session.move_scene(self.path, operation(), "forest_path")
 
+    def test_ad_hoc_skill_check_is_audited_without_unlocking_map(self):
+        event, snapshot = session.skill_check(self.path, operation(), "athletics", 15,
+                                               "攀上潮湿的磨坊外墙，困难检定",
+                                               roller=lambda _: 12)
+        self.assertTrue(event["payload"]["success"])
+        self.assertEqual(event["payload"]["dice"][0]["total"], 17)
+        self.assertEqual(event["payload"]["reason"], "攀上潮湿的磨坊外墙，困难检定")
+        self.assertNotIn("forest_path", snapshot["scene"]["discovered_locations"])
+        with self.assertRaises(session.SessionError):
+            session.skill_check(self.path, operation(), "athletics", 31, "无效 DC")
+
     def test_full_original_encounter_and_reload(self):
         declaration, _ = session.declare(self.path, operation(), "我先询问磨坊主的女儿。")
         self.assertEqual(declaration["type"], "player.declared")
@@ -745,6 +756,31 @@ class SessionTests(unittest.TestCase):
         _, snapshot = session.long_rest(path, operation())
         self.assertEqual(snapshot["character"]["resources"]["divine_sense"]["current"], 2)
         self.assertEqual(snapshot["character"]["resources"]["lay_on_hands"]["current"], 5)
+
+    def test_ranger_forest_tracking_applies_both_class_features(self):
+        path = Path(self.temp.name) / "ranger"
+        state.create(path, "游侠")
+        choices = hero()
+        choices.update(**{"class": "ranger", "class_skills": ["athletics", "perception", "survival"],
+                          "favored_enemy": ["goblin", "orc"], "favored_terrain": "forest",
+                          "favored_enemy_language": "goblin", "armor": "leather_armor",
+                          "shield": False, "weapon": "longbow"})
+        del choices["fighting_style"]
+        state.confirm_character(path, operation(), choices)
+        session.check(path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(path, operation(), "forest_path")
+        rolls = iter([4, 12])
+        tracked, snapshot = session.skill_check(path, operation(), "survival", 15,
+                                                 "在林中追踪哥布林足迹，困难 DC 15",
+                                                 activity="track", target_race="goblin",
+                                                 roller=lambda _: next(rolls))
+        self.assertEqual(tracked["payload"]["dice"][0]["mode"], "advantage")
+        self.assertEqual(tracked["payload"]["dice"][0]["modifier"], 4)
+        self.assertEqual(tracked["payload"]["dice"][0]["total"], 16)
+        self.assertTrue(tracked["payload"]["success"])
+        self.assertIn("class.ranger.favored_enemy", tracked["rules"])
+        self.assertIn("class.ranger.natural_explorer", tracked["rules"])
+        self.assertEqual(state.load(path)[1]["revision"], snapshot["revision"])
 
 
 if __name__ == "__main__":

@@ -1,5 +1,7 @@
 # 旧磨坊会话（开发版）
 
+开放情境中的技能检定可用 `skill-check --skill <技能 ID> --dc <1–30> --reason <场景及 DC 依据>`。先向玩家说明检定依据，获得玩家行动声明后再掷骰；这一命令只记录结果，不自行揭示地图地点或写入叙事奖励。游侠在已进入林中岔路时，对偏好地形相关的熟练智力／感知技能检定额外加一次熟练加值；追踪已选哥布林或兽人时可附加 `--activity track --target-race goblin|orc`，获得优势。DM 应核对实际场景，不得凭玩家要求添加不适用的优势。
+
 每个操作先生成 UUID；同一意图重试复用原操作 ID。先用 `python scripts/state.py load <战役目录>` 读取公开状态。玩家在聊天中声明行动，DM 不替玩家选择。以下命令都使用 `python scripts/session.py <战役目录> <命令> --operation-id <UUID>`；完整选项用 `--help` 查看。
 
 玩家与 NPC 交谈可用 `declare --text <玩家原话>` 记录声明；DM 根据已确立事实回复，再用 `narrate --text <公开观察>` 保存可见叙述。不可把未发现地点或 DM 私密设定写进公开叙述。

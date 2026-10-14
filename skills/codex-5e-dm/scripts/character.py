@@ -30,6 +30,8 @@ ROGUE_SKILLS = frozenset(("acrobatics", "athletics", "deception", "insight",
 MONK_SKILLS = frozenset(("acrobatics", "athletics", "history", "insight", "religion", "stealth"))
 PALADIN_SKILLS = frozenset(("athletics", "insight", "intimidation", "medicine",
                             "persuasion", "religion"))
+RANGER_SKILLS = frozenset(("animal_handling", "athletics", "insight", "investigation",
+                           "nature", "perception", "stealth", "survival"))
 MONK_TOOLS = frozenset(("calligraphers_supplies", "carpenters_tools", "cobblers_tools",
                         "cooks_utensils", "flute", "lute", "painters_supplies", "potters_tools"))
 LANGUAGES = frozenset(("dwarvish", "elvish", "giant", "gnomish", "goblin", "halfling",
@@ -106,10 +108,11 @@ def options(context: dict | None = None) -> dict:
             "rogue_skills": sorted(ROGUE_SKILLS),
             "monk_skills": sorted(MONK_SKILLS), "monk_tools": sorted(MONK_TOOLS),
             "paladin_skills": sorted(PALADIN_SKILLS),
+            "ranger_skills": sorted(RANGER_SKILLS),
             "fighting_styles": [{"id": style, "status": "buildable" if style in ("archery", "defense", "dueling") else "indexed_only"}
                                 for style in sorted(STYLES)],
             "languages": sorted(LANGUAGES),
-            "notice": "Verified fixed routes: human fighter, barbarian, rogue, monk, or paladin with acolyte."}
+            "notice": "Verified fixed routes: human fighter, barbarian, rogue, monk, paladin, or ranger with acolyte."}
 
 
 def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
@@ -118,7 +121,8 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
         _err("invalid_choice", "$", "Input must be an object")
     allowed = {"schema_version", "ruleset", "name", "backstory", "race", "class", "background",
                "ability_method", "base_abilities", "class_skills", "background_languages",
-               "fighting_style", "expertise", "monk_tool", "armor", "shield", "weapon", "roll_event_id", "rolled_assignment"}
+               "fighting_style", "expertise", "monk_tool", "favored_enemy", "favored_terrain",
+               "favored_enemy_language", "armor", "shield", "weapon", "roll_event_id", "rolled_assignment"}
     extra = set(data) - allowed
     if extra:
         _err("invalid_choice", sorted(extra)[0], "Unknown mechanical field")
@@ -131,7 +135,7 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
             _err("missing_choice", field, f"Choose {field}")
     if data["race"] != "human":
         _err("unsupported_option", "race", f"{data['race']} is not mechanically verified yet")
-    if data["class"] not in ("fighter", "barbarian", "rogue", "monk", "paladin"):
+    if data["class"] not in ("fighter", "barbarian", "rogue", "monk", "paladin", "ranger"):
         _err("unsupported_option", "class", f"{data['class']} is not mechanically verified yet")
     if data["background"] != "acolyte":
         _err("unsupported_option", "background", f"{data['background']} is not mechanically verified yet")
@@ -139,6 +143,7 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
     rogue = data["class"] == "rogue"
     monk = data["class"] == "monk"
     paladin = data["class"] == "paladin"
+    ranger = data["class"] == "ranger"
     name = data.get("name", "")
     backstory = data.get("backstory", "")
     if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or not isinstance(backstory, str) or len(backstory) > 2000:
@@ -147,8 +152,9 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
     scores = {ability: score + 1 for ability, score in base.items()}
     modifiers = {ability: (score - 10) // 2 for ability, score in scores.items()}
     class_skills = data.get("class_skills")
-    _unique(class_skills, "class_skills", 4 if rogue else 2)
-    allowed_skills = (PALADIN_SKILLS if paladin else ROGUE_SKILLS if rogue else MONK_SKILLS if monk else
+    _unique(class_skills, "class_skills", 4 if rogue else 3 if ranger else 2)
+    allowed_skills = (RANGER_SKILLS if ranger else PALADIN_SKILLS if paladin else
+                      ROGUE_SKILLS if rogue else MONK_SKILLS if monk else
                       BARBARIAN_SKILLS if barbarian else FIGHTER_SKILLS)
     if not set(class_skills) <= allowed_skills or set(class_skills) & {"insight", "religion"}:
         _err("invalid_choice", "class_skills", "Choose two class skills not granted by acolyte")
@@ -168,8 +174,16 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
             _err("invalid_choice", "monk_tool", "Choose one supported monk artisan tool or instrument")
     elif "monk_tool" in data:
         _err("invalid_choice", "monk_tool", "Only monks choose a monk tool")
+    if ranger:
+        if (data.get("favored_enemy") != ["goblin", "orc"] or
+                data.get("favored_terrain") != "forest" or
+                data.get("favored_enemy_language") != "goblin"):
+            _err("unsupported_option", "favored_enemy/favored_terrain",
+                 "Verified ranger route currently supports goblin+orc humanoids, forest, and Goblin language")
+    elif any(key in data for key in ("favored_enemy", "favored_terrain", "favored_enemy_language")):
+        _err("invalid_choice", "favored_enemy", "Favored Enemy and Natural Explorer are ranger features")
     style = data.get("fighting_style")
-    if barbarian or rogue or monk or paladin:
+    if barbarian or rogue or monk or paladin or ranger:
         if "fighting_style" in data:
             _err("invalid_choice", "fighting_style", "This class does not choose a fighting style at level one")
     else:
@@ -183,7 +197,12 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
         _err("missing_choice", "shield", "Specify whether shield is equipped")
     weapon = data.get("weapon")
     archer = not barbarian and style == "archery"
-    if paladin:
+    if ranger:
+        if armor != "leather_armor" or shield or weapon != "longbow":
+            _err("unsupported_option", "armor/shield/weapon",
+                 "Verified ranger route requires leather armor, no shield, and longbow")
+        ac = 11 + modifiers["dex"]
+    elif paladin:
         if armor != "chain_mail" or not shield or weapon != "longsword":
             _err("unsupported_option", "armor/shield/weapon",
                  "Verified paladin route requires chain mail, donned shield, and longsword")
@@ -217,7 +236,7 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
     skill_set = set(class_skills) | {"insight", "religion"}
     skills = {skill: modifiers[ability] + (4 if rogue and skill in expertise else 2 if skill in skill_set else 0)
               for skill, ability in SKILL_ABILITY.items()}
-    save_proficiencies = (("wis", "cha") if paladin else ("dex", "int") if rogue else
+    save_proficiencies = (("str", "dex") if ranger else ("wis", "cha") if paladin else ("dex", "int") if rogue else
                           ("str", "dex") if monk else ("str", "con"))
     saving_throws = {ability: modifiers[ability] + (2 if ability in save_proficiencies else 0)
                      for ability in ABILITIES}
@@ -227,7 +246,11 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
         speed = 20
     else:
         speed = 30
-    if paladin:
+    if ranger:
+        equipment = [{"id": "leather_armor", "quantity": 1},
+                     {"id": "shortsword", "quantity": 2}, {"id": "explorers_pack", "quantity": 1},
+                     {"id": "longbow", "quantity": 1}, {"id": "arrow", "quantity": 20}]
+    elif paladin:
         equipment = [{"id": "longsword", "quantity": 1}, {"id": "shield", "quantity": 1},
                      {"id": "javelin", "quantity": 5}, {"id": "explorers_pack", "quantity": 1},
                      {"id": "chain_mail", "quantity": 1}, {"id": "holy_symbol", "quantity": 1}]
@@ -259,7 +282,11 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
                   {"id": "vestments", "quantity": 1},
                   {"id": "common_clothes", "quantity": 1},
                   {"id": "gp", "quantity": 15}]
-    if paladin:
+    if ranger:
+        attacks = [{"id": "longbow", "name": "长弓", "attack_bonus": modifiers["dex"] + 2,
+                    "damage_die": 8, "damage_bonus": modifiers["dex"],
+                    "range_normal": 150, "range_long": 600, "damage_type": "piercing"}]
+    elif paladin:
         attacks = [{"id": "longsword", "name": "长剑", "attack_bonus": modifiers["str"] + 2,
                     "damage_die": 8, "damage_bonus": modifiers["str"], "reach": 5,
                     "damage_type": "slashing"}]
@@ -298,9 +325,9 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
         senses = max(0, 1 + modifiers["cha"])
         resources["divine_sense"] = {"current": senses, "max": senses, "recovery": "long_rest"}
         resources["lay_on_hands"] = {"current": 5, "max": 5, "recovery": "long_rest"}
-    elif not rogue and not monk and not paladin:
+    elif not rogue and not monk and not paladin and not ranger:
         resources["second_wind"] = {"current": 1, "max": 1, "recovery": "short_or_long_rest"}
-    if archer:
+    if archer or ranger:
         resources["ammunition_arrow"] = {"current": 20, "max": 20,
                                           "recovery": "recover_half_after_battle"}
         resources["recoverable_arrow"] = {"current": 0, "max": 20,
@@ -311,15 +338,19 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
                       "rolled_assignment": data.get("rolled_assignment"),
                       "class_skills": class_skills, "background_languages": background_languages,
                       "armor": armor, "shield": shield, "weapon": weapon}
-    if monk:
+    if ranger:
+        source_choices.update(favored_enemy=["goblin", "orc"], favored_terrain="forest",
+                              favored_enemy_language="goblin")
+    elif monk:
         source_choices["monk_tool"] = data["monk_tool"]
     elif rogue:
         source_choices["expertise"] = expertise
-    elif not barbarian and not paladin:
+    elif not barbarian and not paladin and not ranger:
         source_choices["fighting_style"] = style
     rule_ids = ["race.human", f"class.{data['class']}", "background.acolyte",
                 "character.ability_scores", "character.proficiency", "equipment.weapons_armor"]
-    rule_ids += (["class.paladin.divine_sense", "class.paladin.lay_on_hands"]
+    rule_ids += (["class.ranger.favored_enemy", "class.ranger.natural_explorer"]
+                 if ranger else ["class.paladin.divine_sense", "class.paladin.lay_on_hands"]
                  if paladin else ["class.monk.unarmored_defense", "class.monk.martial_arts"]
                  if monk else ["class.rogue.expertise", "class.rogue.sneak_attack", "class.rogue.thieves_cant"]
                  if rogue else ["class.barbarian.rage", "class.barbarian.unarmored_defense"]
@@ -334,7 +365,8 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
                         "passive_perception": 10 + skills["perception"], "initiative": modifiers["dex"],
                         "ac": ac, "speed": speed, "max_hp": hp, "hit_die": hit_die,
                         "attacks": attacks,
-                        "languages": ["common", *background_languages, *(["thieves_cant"] if rogue else [])],
+                        "languages": ["common", *background_languages,
+                                      *(["thieves_cant"] if rogue else ["goblin"] if ranger else [])],
                         "tool_proficiencies": ([data["monk_tool"]] if monk else
                                                ["thieves_tools"] if rogue else [])},
             "resources": resources}

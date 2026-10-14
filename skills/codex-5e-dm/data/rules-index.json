@@ -54,6 +54,8 @@
     {"id":"class.paladin.divine_sense","kind":"entry","section":"Classes > Paladin > Divine Sense","m2_required":true,"status":"indexed_only"},
     {"id":"class.paladin.lay_on_hands","kind":"entry","section":"Classes > Paladin > Lay on Hands","m2_required":true,"status":"indexed_only"},
     {"id":"class.ranger","kind":"entry","section":"Classes > Ranger","m2_required":true,"status":"indexed_only"},
+    {"id":"class.ranger.favored_enemy","kind":"entry","section":"Classes > Ranger > Favored Enemy","m2_required":true,"status":"indexed_only"},
+    {"id":"class.ranger.natural_explorer","kind":"entry","section":"Classes > Ranger > Natural Explorer","m2_required":true,"status":"indexed_only"},
     {"id":"class.rogue","kind":"entry","section":"Classes > Rogue","m2_required":true,"status":"indexed_only"},
     {"id":"class.rogue.expertise","kind":"entry","section":"Classes > Rogue > Expertise","m2_required":true,"status":"indexed_only"},
     {"id":"class.rogue.sneak_attack","kind":"entry","section":"Classes > Rogue > Sneak Attack","m2_required":true,"status":"indexed_only"},

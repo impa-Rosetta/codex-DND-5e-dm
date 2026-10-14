@@ -33,7 +33,7 @@ class CharacterTests(unittest.TestCase):
         value = character.options()
         self.assertEqual(len(value["classes"]), 12)
         self.assertEqual({c["id"] for c in value["classes"] if c["status"] == "buildable"},
-                         {"fighter", "barbarian", "rogue", "monk", "paladin"})
+                         {"fighter", "barbarian", "rogue", "monk", "paladin", "ranger"})
         data = hero(); data["class"] = "wizard"
         with self.assertRaises(character.CharacterError) as caught:
             character.build(data)
@@ -176,6 +176,21 @@ class CharacterTests(unittest.TestCase):
         self.assertEqual(card["resources"]["lay_on_hands"]["current"], 5)
         self.assertEqual(card["resources"]["divine_sense"]["current"], 2)
         self.assertNotIn("second_wind", card["resources"])
+
+    def test_human_ranger_favored_enemy_and_natural_explorer(self):
+        data = hero()
+        data.update(**{"class": "ranger", "class_skills": ["athletics", "perception", "survival"],
+                       "favored_enemy": ["goblin", "orc"], "favored_terrain": "forest",
+                       "favored_enemy_language": "goblin", "armor": "leather_armor",
+                       "shield": False, "weapon": "longbow"})
+        del data["fighting_style"]
+        card = character.build(data)
+        self.assertEqual(card["derived"]["hit_die"], "d10")
+        self.assertEqual(card["derived"]["ac"], 13)
+        self.assertEqual(card["derived"]["attacks"][0]["attack_bonus"], 4)
+        self.assertIn("goblin", card["derived"]["languages"])
+        self.assertIn("class.ranger.natural_explorer", card["rule_ids"])
+        self.assertEqual(card["resources"]["ammunition_arrow"]["current"], 20)
 
 
 if __name__ == "__main__":

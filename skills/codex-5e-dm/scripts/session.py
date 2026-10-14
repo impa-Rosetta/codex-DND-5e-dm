@@ -82,6 +82,53 @@ def check(directory, operation_id: str, challenge_id: str, *, mode="normal", rol
                     rules=["check.ability", "adventuring.exploration"])
 
 
+def skill_check(directory, operation_id: str, skill: str, dc: int, reason: str,
+                *, mode="normal", activity="general", target_race=None, roller=None):
+    """Resolve a DM-declared skill check without granting scene discoveries."""
+    if type(dc) is not int or not 1 <= dc <= 30:
+        raise SessionError("Skill check DC must be 1–30")
+    if not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 300:
+        raise SessionError("State the check's situation and DC basis")
+    if activity not in ("general", "track") or (activity == "track" and not isinstance(target_race, str)):
+        raise SessionError("Tracking checks require a target race")
+    if activity == "general" and target_race is not None:
+        raise SessionError("Target race is only used for tracking")
+
+    def resolve(state, _events):
+        hero = _hero(state)
+        if hero["resources"]["hp"]["current"] <= 0:
+            raise SessionError("Unconscious character cannot make this skill check")
+        if skill not in hero["derived"]["skills"]:
+            raise SessionError("Unknown skill")
+        if state["combat"] is not None:
+            raise SessionError("Use a supported combat action during combat")
+        bonus = hero["derived"]["skills"][skill]
+        effective_mode = mode
+        applied_features = []
+        if hero["source_choices"]["class"] == "ranger":
+            if (state["scene"]["location_id"] == "forest_path" and
+                    hero["source_choices"]["favored_terrain"] == "forest" and
+                    skill in (*hero["source_choices"]["class_skills"], "insight", "religion") and
+                    skill in ("animal_handling", "arcana", "history", "insight", "investigation",
+                              "medicine", "nature", "perception", "religion", "survival")):
+                bonus += hero["derived"]["proficiency_bonus"]
+                applied_features.append("class.ranger.natural_explorer")
+            if activity == "track" and skill == "survival" and target_race in hero["source_choices"]["favored_enemy"]:
+                effective_mode = "normal" if mode == "disadvantage" else "advantage"
+                applied_features.append("class.ranger.favored_enemy")
+        dice = roll_dice(f"d20{bonus:+d}", purpose=f"skill_check_{skill}", mode=effective_mode, roller=roller)
+        success = dice["total"] >= dc
+        return {"skill": skill, "dc": dc, "reason": reason.strip(), "dice": [dice],
+                "success": success, "activity": activity, "target_race": target_race,
+                "applied_features": applied_features, "discovered_location_id": None,
+                "public_view": {"summary": f"{hero['name']}进行{skill}检定：{dice['total']} 对抗 DC {dc}，{'成功' if success else '失败'}。",
+                                "total": dice["total"], "dc": dc, "success": success}}
+
+    return transact(directory, operation_id, "check.resolved", resolve,
+                    rules=lambda _state, payload: ["check.ability", "adventuring.exploration",
+                                                   *payload["applied_features"]])
+
+
 def move_scene(directory, operation_id: str, location_id: str):
     if location_id not in LOCATIONS:
         raise SessionError("Unknown location")
@@ -614,7 +661,7 @@ def main(argv=None) -> int:
     sys.stderr.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser(description="Audited old-mill session actions")
     parser.add_argument("directory")
-    parser.add_argument("command", choices=("declare", "narrate", "check", "move", "start-combat",
+    parser.add_argument("command", choices=("declare", "narrate", "check", "skill-check", "move", "start-combat",
                                             "attack", "combat-action", "combat-move", "advance", "death-save",
                                             "second-wind", "rage", "martial-arts", "divine-sense", "lay-on-hands",
                                             "short-rest", "long-rest", "end-combat", "recover-stable",
@@ -622,6 +669,11 @@ def main(argv=None) -> int:
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--text")
     parser.add_argument("--challenge-id")
+    parser.add_argument("--skill")
+    parser.add_argument("--dc", type=int)
+    parser.add_argument("--reason")
+    parser.add_argument("--activity", choices=("general", "track"), default="general")
+    parser.add_argument("--target-race")
     parser.add_argument("--location-id")
     parser.add_argument("--target-id")
     parser.add_argument("--action", choices=("dash", "disengage", "dodge"))
@@ -635,6 +687,9 @@ def main(argv=None) -> int:
     commands = {"declare": lambda: declare(args.directory, args.operation_id, args.text),
                 "narrate": lambda: narrate(args.directory, args.operation_id, args.text),
                 "check": lambda: check(args.directory, args.operation_id, args.challenge_id, mode=args.mode),
+                "skill-check": lambda: skill_check(args.directory, args.operation_id, args.skill,
+                                                    args.dc, args.reason, mode=args.mode,
+                                                    activity=args.activity, target_race=args.target_race),
                 "move": lambda: move_scene(args.directory, args.operation_id, args.location_id),
                 "start-combat": lambda: start_encounter(args.directory, args.operation_id),
                 "attack": lambda: attack(args.directory, args.operation_id, args.target_id, mode=args.mode),
