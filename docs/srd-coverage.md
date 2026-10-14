@@ -8,7 +8,7 @@
 | --- | --- | --- | --- | --- | --- | --- |
 | `race.human` | Races → Human | 是 | 已索引 | 普通人类属性加值、速度；部分实现 | 建卡测试通过 | M2：其余特性与组合验证 |
 | `races.other` | Races | 是，全部一级选项 | 已索引 | 未结构化 | 未测试 | M2：逐项覆盖 SRD 种族与亚种 |
-| `class.fighter` | Classes → Fighter | 是，仅 1 级 | 已索引 | HP、熟练、第二春、选风格；部分实现 | 建卡测试通过 | M2：全部风格的运行时；M3：2–20 级 |
+| `class.fighter` | Classes → Fighter | 是，仅 1 级 | 已索引 | HP、熟练、第二春；固定装备下防御与决斗风格；部分实现 | 建卡／遭遇测试通过 | M2：其余四种风格的运行时；M3：2–20 级 |
 | `classes.other` | Classes | 是，全部一级选项 | 已索引 | 未结构化 | 未测试 | M2：一级职业；M3：更高等级 |
 | `background.acolyte` | Backgrounds → Acolyte | 是 | 已索引 | 洞悉、宗教、语言；部分实现 | 建卡测试通过 | M2：装备与背景特性 |
 | `background.customization` | Backgrounds → Customizing a Background | 是，SRD 允许的自定义 | 已索引 | 未结构化 | 未测试 | SRD 仅收录侍僧；不把未收录背景当作内置选项 |

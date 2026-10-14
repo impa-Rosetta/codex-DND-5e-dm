@@ -61,6 +61,26 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(public["last_applied_event_id"], rested["event_id"])
         self.assertEqual(public["scene"]["location_id"], "forest_path")
 
+    def test_dueling_damage_is_used_by_persisted_encounter(self):
+        duel_path = Path(self.temp.name) / "duel"
+        state.create(duel_path, "决斗样例")
+        choices = hero(); choices["fighting_style"] = "dueling"
+        _, snapshot = state.confirm_character(duel_path, operation(), choices)
+        hero_id = snapshot["character"]["id"]
+        session.check(duel_path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(duel_path, operation(), "forest_path")
+        initiative = iter([20, 1])
+        _, snapshot = session.start_encounter(duel_path, operation(),
+                                              roller=lambda _: next(initiative))
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != hero_id)
+        dice = iter([10, 1])
+        event, snapshot = session.attack(duel_path, operation(), goblin_id,
+                                         roller=lambda _: next(dice))
+        self.assertEqual(event["payload"]["damage"], 6)
+        self.assertEqual(event["payload"]["hp_after"], 1)
+        self.assertEqual(state.load(duel_path)[1]["combat"]["combatants"][1]["hp"], 1)
+
     def test_check_does_not_auto_succeed_on_natural_twenty_or_one(self):
         failed, snapshot = session.check(self.path, operation(), "find_forest_path", roller=lambda _: 1)
         self.assertFalse(failed["payload"]["success"])

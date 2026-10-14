@@ -92,7 +92,7 @@ def options(context: dict | None = None) -> dict:
             "races": data["races"], "classes": data["classes"], "backgrounds": data["backgrounds"],
             "ability_methods": ["standard_array", "point_buy", "rolled"],
             "fighter_skills": sorted(FIGHTER_SKILLS),
-            "fighting_styles": [{"id": style, "status": "buildable" if style == "defense" else "indexed_only"}
+            "fighting_styles": [{"id": style, "status": "buildable" if style in ("defense", "dueling") else "indexed_only"}
                                 for style in sorted(STYLES)],
             "languages": sorted(LANGUAGES),
             "notice": "Only human fighter with acolyte background is currently mechanically verified."}
@@ -135,7 +135,7 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
     style = data.get("fighting_style")
     if style not in STYLES:
         _err("missing_choice", "fighting_style", "Choose one fighter fighting style")
-    if style != "defense":
+    if style not in ("defense", "dueling"):
         _err("unsupported_option", "fighting_style", "This style's action rules are not implemented")
     armor = data.get("armor")
     if armor != "chain_mail":
@@ -188,7 +188,8 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
                         "ac": ac, "speed": speed, "max_hp": hp, "hit_die": "d10",
                         "attacks": [
                             {"id": "longsword", "name": "长剑", "attack_bonus": modifiers["str"] + 2,
-                             "damage_die": 8, "damage_bonus": modifiers["str"], "reach": 5},
+                             "damage_die": 8, "damage_bonus": modifiers["str"] + (2 if style == "dueling" else 0),
+                             "reach": 5},
                             {"id": "handaxe", "name": "手斧", "attack_bonus": modifiers["str"] + 2,
                              "damage_die": 6, "damage_bonus": modifiers["str"],
                              "range_normal": 20, "range_long": 60}],

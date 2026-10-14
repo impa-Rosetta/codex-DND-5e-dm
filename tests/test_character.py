@@ -67,6 +67,17 @@ class CharacterTests(unittest.TestCase):
             character.build(data)
         self.assertEqual(caught.exception.code, "unsupported_option")
 
+    def test_dueling_uses_one_handed_longsword_without_changing_attack_bonus(self):
+        data = hero(); data["fighting_style"] = "dueling"
+        result = character.build(data)
+        self.assertEqual(result["derived"]["ac"], 18)
+        self.assertEqual(result["derived"]["attacks"][0]["attack_bonus"], 5)
+        self.assertEqual(result["derived"]["attacks"][0]["damage_bonus"], 5)
+        self.assertEqual(result["derived"]["attacks"][1]["damage_bonus"], 3)
+        styles = {item["id"]: item["status"] for item in character.options()["fighting_styles"]}
+        self.assertEqual(styles["dueling"], "buildable")
+        self.assertEqual(styles["protection"], "indexed_only")
+
 
 if __name__ == "__main__":
     unittest.main()
