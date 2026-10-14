@@ -1,7 +1,7 @@
 """Deterministic, deliberately bounded SRD 5.1 level-one character builder.
 
-Only verified human/fighter/acolyte is buildable in this release. Listing an
-option never implies it has a complete mechanical implementation.
+Only verified human/fighter/acolyte starting routes are buildable in this
+release. Listing an option never implies complete mechanical implementation.
 """
 
 from __future__ import annotations
@@ -92,10 +92,10 @@ def options(context: dict | None = None) -> dict:
             "races": data["races"], "classes": data["classes"], "backgrounds": data["backgrounds"],
             "ability_methods": ["standard_array", "point_buy", "rolled"],
             "fighter_skills": sorted(FIGHTER_SKILLS),
-            "fighting_styles": [{"id": style, "status": "buildable" if style in ("defense", "dueling") else "indexed_only"}
+            "fighting_styles": [{"id": style, "status": "buildable" if style in ("archery", "defense", "dueling") else "indexed_only"}
                                 for style in sorted(STYLES)],
             "languages": sorted(LANGUAGES),
-            "notice": "Only human fighter with acolyte background is currently mechanically verified."}
+            "notice": "Only two human fighter with acolyte starting packages are mechanically verified."}
 
 
 def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
@@ -135,21 +135,25 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
     style = data.get("fighting_style")
     if style not in STYLES:
         _err("missing_choice", "fighting_style", "Choose one fighter fighting style")
-    if style not in ("defense", "dueling"):
+    if style not in ("archery", "defense", "dueling"):
         _err("unsupported_option", "fighting_style", "This style's action rules are not implemented")
     armor = data.get("armor")
-    if armor != "chain_mail":
-        _err("unsupported_option", "armor", "Only the chain-mail starter package is verified")
     shield = data.get("shield")
     if type(shield) is not bool:
         _err("missing_choice", "shield", "Specify whether shield is equipped")
-    if data.get("weapon") != "longsword":
-        _err("unsupported_option", "weapon", "Only longsword plus shield starter package is verified")
-    ac = 16
-    if shield:
-        ac += 2
-    if style == "defense" and armor != "none":
-        ac += 1
+    weapon = data.get("weapon")
+    archer = style == "archery"
+    if archer:
+        if armor != "leather_armor" or shield or weapon != "longbow":
+            _err("unsupported_option", "armor/shield/weapon",
+                 "Verified archery route requires leather armor, no donned shield, and longbow")
+        ac = 11 + modifiers["dex"]
+    else:
+        if armor != "chain_mail":
+            _err("unsupported_option", "armor", "Only the chain-mail melee starter package is verified")
+        if weapon != "longsword":
+            _err("unsupported_option", "weapon", "Only longsword melee package is verified")
+        ac = 16 + (2 if shield else 0) + (1 if style == "defense" else 0)
     skill_set = set(class_skills) | {"insight", "religion"}
     skills = {skill: modifiers[ability] + (2 if skill in skill_set else 0)
               for skill, ability in SKILL_ABILITY.items()}
@@ -160,6 +164,38 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
         speed = 20
     else:
         speed = 30
+    equipment = ([{"id": "leather_armor", "quantity": 1},
+                  {"id": "longbow", "quantity": 1}, {"id": "arrow", "quantity": 20}]
+                 if archer else [{"id": "chain_mail", "quantity": 1}])
+    equipment += [{"id": "shield", "quantity": 1},
+                  {"id": "longsword", "quantity": 1},
+                  {"id": "handaxe", "quantity": 2},
+                  {"id": "explorers_pack", "quantity": 1},
+                  {"id": "holy_symbol", "quantity": 1},
+                  {"id": "prayer_book", "quantity": 1},
+                  {"id": "incense", "quantity": 5},
+                  {"id": "vestments", "quantity": 1},
+                  {"id": "common_clothes", "quantity": 1},
+                  {"id": "gp", "quantity": 15}]
+    attacks = ([{"id": "longbow", "name": "长弓", "attack_bonus": modifiers["dex"] + 4,
+                 "damage_die": 8, "damage_bonus": modifiers["dex"],
+                 "range_normal": 150, "range_long": 600}]
+               if archer else [])
+    attacks += [{"id": "longsword", "name": "长剑", "attack_bonus": modifiers["str"] + 2,
+                 "damage_die": 8, "damage_bonus": modifiers["str"] + (2 if style == "dueling" else 0),
+                 "reach": 5},
+                {"id": "handaxe", "name": "手斧", "attack_bonus": modifiers["str"] + 2,
+                 "damage_die": 6, "damage_bonus": modifiers["str"],
+                 "range_normal": 20, "range_long": 60}]
+    resources = {"hp": {"current": hp, "max": hp},
+                 "temp_hp": {"current": 0, "max": None},
+                 "second_wind": {"current": 1, "max": 1, "recovery": "short_or_long_rest"},
+                 "hit_dice_d10": {"current": 1, "max": 1, "recovery": "long_rest"}}
+    if archer:
+        resources["ammunition_arrow"] = {"current": 20, "max": 20,
+                                          "recovery": "recover_half_after_battle"}
+        resources["recoverable_arrow"] = {"current": 0, "max": 20,
+                                           "recovery": "battlefield_search"}
     return {"schema_version": 1, "ruleset": RULESET, "catalog_version": "0.1.0-partial",
             "name": name.strip(), "backstory": backstory,
             "source_choices": {"race": "human", "class": "fighter", "background": "acolyte",
@@ -168,36 +204,18 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
                                "rolled_assignment": data.get("rolled_assignment"),
                                "class_skills": class_skills, "background_languages": background_languages,
                                "fighting_style": style, "armor": armor, "shield": shield,
-                               "weapon": "longsword"},
-            "equipment": [{"id": "chain_mail", "quantity": 1},
-                          {"id": "shield", "quantity": 1},
-                          {"id": "longsword", "quantity": 1},
-                          {"id": "handaxe", "quantity": 2},
-                          {"id": "explorers_pack", "quantity": 1},
-                          {"id": "holy_symbol", "quantity": 1},
-                          {"id": "prayer_book", "quantity": 1},
-                          {"id": "incense", "quantity": 5},
-                          {"id": "vestments", "quantity": 1},
-                          {"id": "common_clothes", "quantity": 1},
-                          {"id": "gp", "quantity": 15}],
+                               "weapon": weapon},
+            "equipment": equipment,
             "rule_ids": ["race.human", "class.fighter", "background.acolyte",
-                         "character.ability_scores", "character.proficiency", "equipment.weapons_armor"],
+                         f"class.fighter.style.{style}", "character.ability_scores",
+                         "character.proficiency", "equipment.weapons_armor"],
             "derived": {"level": 1, "abilities": scores, "modifiers": modifiers,
                         "proficiency_bonus": 2, "saving_throws": saving_throws, "skills": skills,
                         "passive_perception": 10 + skills["perception"], "initiative": modifiers["dex"],
                         "ac": ac, "speed": speed, "max_hp": hp, "hit_die": "d10",
-                        "attacks": [
-                            {"id": "longsword", "name": "长剑", "attack_bonus": modifiers["str"] + 2,
-                             "damage_die": 8, "damage_bonus": modifiers["str"] + (2 if style == "dueling" else 0),
-                             "reach": 5},
-                            {"id": "handaxe", "name": "手斧", "attack_bonus": modifiers["str"] + 2,
-                             "damage_die": 6, "damage_bonus": modifiers["str"],
-                             "range_normal": 20, "range_long": 60}],
+                        "attacks": attacks,
                         "languages": ["common", *background_languages]},
-            "resources": {"hp": {"current": hp, "max": hp},
-                          "temp_hp": {"current": 0, "max": None},
-                          "second_wind": {"current": 1, "max": 1, "recovery": "short_or_long_rest"},
-                          "hit_dice_d10": {"current": 1, "max": 1, "recovery": "long_rest"}}}
+            "resources": resources}
 
 
 def _read_input(path: str) -> dict:

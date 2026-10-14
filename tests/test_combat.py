@@ -63,6 +63,15 @@ class CombatTests(unittest.TestCase):
         self.assertEqual([unit["combatant_id"] for unit in result["combatants"]],
                          ["hero", "goblin"])
 
+    def test_one_advantage_cancels_multiple_disadvantages(self):
+        self.fight["combatants"][1]["dodging"] = True
+        values = iter([14, 3])
+        result = combat.resolve_attack(self.fight, "hero", "goblin", self.weapon,
+                                       mode="advantage", extra_disadvantage=True,
+                                       roller=lambda _: next(values))
+        self.assertEqual(result["dice"][0]["raw"], [14])
+        self.assertTrue(result["hit"])
+
 
 if __name__ == "__main__":
     unittest.main()

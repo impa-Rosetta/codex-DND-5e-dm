@@ -10,7 +10,7 @@
 | 背景（2 个入口） | `acolyte`, `custom_background` | 仅固定侍僧路径；自定义背景待实现 |
 | 属性方式 | `standard_array`, `point_buy`, `rolled_4d6_drop_lowest` | 三种方式已有窄样例计算及审计 |
 | 龙裔祖先（10） | `black`, `blue`, `brass`, `bronze`, `copper`, `gold`, `green`, `red`, `silver`, `white` | 尚不可建；这里只冻结龙种选择，不代表吐息和抗性已实现 |
-| 战士战斗风格（6） | `archery`, `defense`, `dueling`, `great_weapon_fighting`, `protection`, `two_weapon_fighting` | 固定装备样例支持防御的 AC +1、决斗的单手长剑伤害 +2；余下四种仅索引 |
+| 战士战斗风格（6） | `archery`, `defense`, `dueling`, `great_weapon_fighting`, `protection`, `two_weapon_fighting` | 固定装备样例支持防御的 AC +1、决斗的单手长剑伤害 +2、箭术的长弓命中 +2；余下三种仅索引 |
 | 四个非施法职业的起始装备与技能／工具选择 | 野蛮人、战士、武僧、游荡者：见 [`level1-martial-creation-choices.json`](../skills/codex-5e-dm/data/level1-martial-creation-choices.json) | 仅机器清单；合法替代项、数量及通用武器类别已有独立 ID，尚不能据此建卡 |
 | 六种一级施法职业的戏法／一级法术列表 | 见 [`level1-spell-lists.json`](../skills/codex-5e-dm/data/level1-spell-lists.json) | 只建立了 SRD 名称与职业归属；法术效果、选择数量、法术位尚未实现 |
 

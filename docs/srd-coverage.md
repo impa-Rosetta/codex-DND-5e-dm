@@ -26,7 +26,7 @@
 | `combat.opportunity_attack` | Combat → Melee Attacks → Opportunity Attacks | 是 | 已索引 | 固定遭遇双方离开触及范围时的借机攻击、玩家反应选择；部分实现 | 场景／重放测试通过 | M2：其他敌人、可见性与特殊触及范围 |
 | `combat.conditions` | Conditions | 是，样例所需状态 | 已索引 | 未结构化 | 未测试 | M3：全部 SRD 状态 |
 | `combat.death_saves` | Combat → Dropping to 0 Hit Points | 是 | 已索引 | 固定遭遇的即死判定、死亡豁免、零 HP 后续近战伤害、稳定后自发苏醒与胜负退出；部分实现 | 场景／重放测试通过 | M2：急救／治疗及更多来源伤害 |
-| `equipment.weapons_armor` | Equipment | 是，全部一级起始选项 | 已索引 | 战士固定合法起始包的链甲／盾牌／长剑／手斧；部分实现 | 建卡／战斗测试通过 | M2：全部一级起始装备；M3：其余装备 |
+| `equipment.weapons_armor` | Equipment | 是，全部一级起始选项 | 已索引 | 战士链甲／长剑及皮甲／长弓固定合法起始包、箭矢消耗与战后找回；部分实现 | 建卡／战斗／重放测试通过 | M2：全部一级起始装备与武器切换；M3：其余装备 |
 | `magic.spellcasting` | Spellcasting | 是，一级施法 | 已索引 | 未结构化 | 未测试 | M2：一级施法；M3：更高等级与完整规则 |
 | `magic.spells` | Spells | 是，一级可选法术 | 已索引 | 未结构化 | 未测试 | M2：一级合法选项；M3：其余法术 |
 | `monsters.goblin` | Monsters → Goblin | 是 | 已索引 | 固定遭遇 AC／HP／弯刀／先攻；部分实现 | 场景测试通过 | M2：完整怪物能力与战术 |

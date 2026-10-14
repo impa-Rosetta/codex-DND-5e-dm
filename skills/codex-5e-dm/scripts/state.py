@@ -153,6 +153,12 @@ def apply_event(state: dict, event: dict) -> dict:
             raise StateError("Combat already active")
         result["combat"] = copy.deepcopy(payload["combat"])
     elif kind == "combat.ended":
+        if payload.get("outcome") == "victory":
+            resources = result["character"]["resources"]
+            if "recoverable_arrow" in resources:
+                recoverable = resources["recoverable_arrow"]
+                recoverable["current"] = min(recoverable["max"],
+                    recoverable["current"] + result["combat"].get("arrows_expended", 0) // 2)
         if payload.get("outcome") == "defeat_dead":
             result["character"]["life_state"] = "dead"
         elif payload.get("outcome") == "defeat_stable":
@@ -169,6 +175,22 @@ def apply_event(state: dict, event: dict) -> dict:
         character["resources"]["hp"]["current"] = 1
         character["life_state"] = "alive"
         result["world_time"] = payload["completed_at"]
+    elif kind == "equipment.ammunition_recovered":
+        character = result["character"]
+        resources = character["resources"]
+        arrows = resources.get("ammunition_arrow")
+        recoverable = resources.get("recoverable_arrow")
+        if (result["combat"] is not None or arrows is None or recoverable is None or
+                character.get("life_state") in ("dead", "stable") or
+                payload["recovered"] != recoverable["current"] or
+                payload["recovered"] <= 0 or
+                arrows["current"] + payload["recovered"] > arrows["max"] or
+                payload["started_at"] != (result["world_time"] or 0) or
+                payload["completed_at"] != payload["started_at"] + 1):
+            raise StateError("Invalid ammunition recovery event")
+        arrows["current"] += payload["recovered"]
+        recoverable["current"] = 0
+        result["world_time"] = payload["completed_at"]
     elif kind == "check.resolved":
         location_id = payload.get("discovered_location_id")
         if payload.get("success") and location_id:
@@ -178,6 +200,12 @@ def apply_event(state: dict, event: dict) -> dict:
             if connection not in result["scene"]["discovered_connections"]:
                 result["scene"]["discovered_connections"].append(connection)
     elif kind == "combat.attack_resolved":
+        if "ammunition_arrow_after" in payload:
+            arrows = result["character"]["resources"].get("ammunition_arrow")
+            if arrows is None or payload["ammunition_arrow_after"] != arrows["current"] - 1:
+                raise StateError("Invalid arrow expenditure")
+            arrows["current"] = payload["ammunition_arrow_after"]
+            result["combat"]["arrows_expended"] = result["combat"].get("arrows_expended", 0) + 1
         target = payload["target_combatant_id"]
         for combatant in result["combat"]["combatants"]:
             if combatant["combatant_id"] == target:

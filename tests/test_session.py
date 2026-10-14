@@ -481,6 +481,91 @@ class SessionTests(unittest.TestCase):
         self.assertIsNone(event["payload"]["opportunity_attack"])
         self.assertEqual(snapshot["combat"]["combatants"][0]["position"], [2, 0])
 
+    def test_archer_close_shot_has_disadvantage_and_consumes_one_arrow_once(self):
+        archer_path = Path(self.temp.name) / "archer"
+        state.create(archer_path, "弓箭战士")
+        choices = hero()
+        choices.update(fighting_style="archery", armor="leather_armor", shield=False,
+                       weapon="longbow")
+        state.confirm_character(archer_path, operation(), choices)
+        session.check(archer_path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(archer_path, operation(), "forest_path")
+        initiative = iter([20, 1])
+        _, snapshot = session.start_encounter(archer_path, operation(),
+                                              roller=lambda _: next(initiative))
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != snapshot["character"]["id"])
+        op = operation()
+        dice = iter([18, 2])
+        shot, snapshot = session.attack(archer_path, op, goblin_id,
+                                        roller=lambda _: next(dice))
+        self.assertFalse(shot["payload"]["hit"])
+        self.assertEqual(shot["payload"]["dice"][0]["raw"], [18, 2])
+        self.assertEqual(snapshot["character"]["resources"]["ammunition_arrow"]["current"], 19)
+        retry, _ = session.attack(archer_path, op, goblin_id,
+                                  roller=lambda _: self.fail("rerolled"))
+        self.assertEqual(retry["event_id"], shot["event_id"])
+        self.assertEqual(state.load(archer_path)[1]["character"]["resources"]["ammunition_arrow"]["current"], 19)
+
+    def test_archer_can_recover_half_expended_arrows_after_victory(self):
+        archer_path = Path(self.temp.name) / "archer_recovery"
+        state.create(archer_path, "战场找箭")
+        choices = hero()
+        choices.update(fighting_style="archery", armor="leather_armor", shield=False,
+                       weapon="longbow")
+        state.confirm_character(archer_path, operation(), choices)
+        session.check(archer_path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(archer_path, operation(), "forest_path")
+        initiative = iter([20, 1])
+        _, snapshot = session.start_encounter(archer_path, operation(),
+                                              roller=lambda _: next(initiative))
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != snapshot["character"]["id"])
+        miss = iter([1, 1])
+        session.attack(archer_path, operation(), goblin_id, roller=lambda _: next(miss))
+        session.advance_turn(archer_path, operation())
+        session.advance_turn(archer_path, operation())
+        critical = iter([20, 20, 3, 3])
+        _, snapshot = session.attack(archer_path, operation(), goblin_id,
+                                     roller=lambda _: next(critical))
+        self.assertEqual(snapshot["combat"]["combatants"][1]["hp"], 0)
+        session.end_encounter(archer_path, operation())
+        before = state.load(archer_path)[1]
+        self.assertEqual(before["character"]["resources"]["ammunition_arrow"]["current"], 18)
+        self.assertEqual(before["character"]["resources"]["recoverable_arrow"]["current"], 1)
+        recovered, snapshot = session.search_battlefield(archer_path, operation())
+        self.assertEqual(recovered["payload"]["recovered"], 1)
+        self.assertEqual(snapshot["character"]["resources"]["ammunition_arrow"]["current"], 19)
+        self.assertEqual(snapshot["character"]["resources"]["recoverable_arrow"]["current"], 0)
+        self.assertEqual(snapshot["world_time"], 1)
+        self.assertEqual(state.load(archer_path)[1]["character"]["resources"]["ammunition_arrow"]["current"], 19)
+
+    def test_archer_shoots_normally_after_disengaging_to_ten_feet(self):
+        archer_path = Path(self.temp.name) / "archer_range"
+        state.create(archer_path, "十英尺长弓")
+        choices = hero()
+        choices.update(fighting_style="archery", armor="leather_armor", shield=False,
+                       weapon="longbow")
+        state.confirm_character(archer_path, operation(), choices)
+        session.check(archer_path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(archer_path, operation(), "forest_path")
+        initiative = iter([20, 1])
+        _, snapshot = session.start_encounter(archer_path, operation(),
+                                              roller=lambda _: next(initiative))
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != snapshot["character"]["id"])
+        session.combat_action(archer_path, operation(), "disengage")
+        session.move_combat(archer_path, operation(), [[-1, 0]])
+        session.advance_turn(archer_path, operation())
+        session.advance_turn(archer_path, operation())
+        dice = iter([14, 4])
+        shot, snapshot = session.attack(archer_path, operation(), goblin_id,
+                                        roller=lambda _: next(dice))
+        self.assertEqual(shot["payload"]["dice"][0]["raw"], [14])
+        self.assertTrue(shot["payload"]["hit"])
+        self.assertEqual(shot["payload"]["damage"], 6)
+        self.assertEqual(snapshot["combat"]["combatants"][1]["hp"], 1)
+
 
 if __name__ == "__main__":
     unittest.main()

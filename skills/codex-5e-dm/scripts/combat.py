@@ -49,7 +49,8 @@ def make_initiative(combatants: list[dict], *, roller=None) -> dict:
 
 def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
                    *, mode: str = "normal", roller=None, reaction: bool = False,
-                   target_unconscious: bool = False) -> dict:
+                   target_unconscious: bool = False,
+                   extra_disadvantage: bool = False) -> dict:
     if not combat or not combat.get("combatants"):
         raise CombatError("No active combat")
     current = combat["combatants"][combat["turn_index"]]
@@ -72,10 +73,13 @@ def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
     die = weapon["damage_die"]
     if not 1 <= die <= 100 or not -20 <= attack_bonus <= 50 or not -20 <= damage_bonus <= 50:
         raise CombatError("Weapon values outside supported range")
-    if target_unconscious:
-        mode = "normal" if mode == "disadvantage" else "advantage"
-    elif target.get("dodging"):
-        mode = "normal" if mode == "advantage" else "disadvantage"
+    if mode not in ("normal", "advantage", "disadvantage"):
+        raise CombatError("Invalid attack roll mode")
+    has_advantage = mode == "advantage" or target_unconscious
+    has_disadvantage = (mode == "disadvantage" or extra_disadvantage or
+                        (bool(target.get("dodging")) and not target_unconscious))
+    mode = ("normal" if has_advantage == has_disadvantage else
+            "advantage" if has_advantage else "disadvantage")
     attack = roll_dice(f"d20{attack_bonus:+d}", purpose="opportunity_attack" if reaction else "attack",
                        mode=mode, roller=roller)
     natural = attack["natural_d20"]

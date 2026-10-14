@@ -2,7 +2,8 @@ const $ = id => document.getElementById(id);
 const abilities = {str: '力量', dex: '敏捷', con: '体质', int: '智力', wis: '感知', cha: '魅力'};
 const labels = {human: '人类', fighter: '战士', acolyte: '侍僧',
   old_mill: '旧磨坊路口', forest_path: '林中岔路',
-  second_wind: '第二春', hit_dice_d10: '生命骰 d10'};
+  second_wind: '第二春', hit_dice_d10: '生命骰 d10',
+  ammunition_arrow: '箭矢', recoverable_arrow: '可找回箭矢'};
 let lastRevision = -1;
 
 function node(tag, className, content) {

@@ -42,7 +42,7 @@
 | `rules` | 本次机械裁定使用的 `rules-index.json` 稳定 ID 数组 |
 | `payload` | 类型专属数据；必须足以确定性重放状态变化 |
 
-基础事件类型包含 `character.created`、`character.stable_recovered`、`player.declared`、`scene.narrated`、`check.resolved`、`combat.attack_resolved`、`combat.action_taken`、`combat.move_resolved`、`combat.death_save_resolved`、`resource.changed`、`position.changed`、`location.discovered`、`turn.advanced`。一次攻击的骰值、伤害、生命值变更和公开反馈装在**同一个** `combat.attack_resolved` 事件的 `payload` 中，不能分成多个各自生效的事件。固定遭遇的移动事件同时保存逐格路径、最终位置、移动消耗及可能的借机攻击骰值／伤害／反应消耗，不能先写位移再单独补写借机攻击。死亡豁免的骰值与成功／失败／稳定／死亡状态装在同一个 `combat.death_save_resolved` 事件中；稳定后的自发恢复以含原始 `1d4` 骰值与时间推进的单条事件记录。独立掷骰可使用 `dice.rolled`，但不得把它当作攻击结算的第二次随机数入口。单一操作的 `operation_id` 对应至多一个已提交结算事件；玩家声明可以是另一个事件，并通过 `causation_event_id` 关联。
+基础事件类型包含 `character.created`、`character.stable_recovered`、`player.declared`、`scene.narrated`、`check.resolved`、`combat.attack_resolved`、`combat.action_taken`、`combat.move_resolved`、`combat.death_save_resolved`、`equipment.ammunition_recovered`、`resource.changed`、`position.changed`、`location.discovered`、`turn.advanced`。一次攻击的骰值、伤害、箭矢消耗、生命值变更和公开反馈装在**同一个** `combat.attack_resolved` 事件的 `payload` 中，不能分成多个各自生效的事件。固定遭遇的移动事件同时保存逐格路径、最终位置、移动消耗及可能的借机攻击骰值／伤害／反应消耗，不能先写位移再单独补写借机攻击。死亡豁免的骰值与成功／失败／稳定／死亡状态装在同一个 `combat.death_save_resolved` 事件中；稳定后的自发恢复以含原始 `1d4` 骰值与时间推进的单条事件记录。战后搜回箭矢以 `equipment.ammunition_recovered` 记录数量与一分钟时间推进。独立掷骰可使用 `dice.rolled`，但不得把它当作攻击结算的第二次随机数入口。单一操作的 `operation_id` 对应至多一个已提交结算事件；玩家声明可以是另一个事件，并通过 `causation_event_id` 关联。
 
 事件 `payload` 可以含 `dice`（用途、骰式、原始点数、优势/劣势保留项、加值、合计）、`effects`（顺序排列的状态变化）和 `public_view`（给聊天和面板的可见文本及结构化摘要）。`dm_private` 事件不得携带可公开投影；`public` 事件也不得嵌入尚未揭示的地图或 NPC 秘密。网页只接收 `public` 事件和过滤后的公开快照，不直接读取 `world.md`、原始事件日志或内部状态文件。
 

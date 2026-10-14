@@ -168,14 +168,31 @@ def attack(directory, operation_id: str, target_id: str, *, mode="normal", rolle
             weapon = GOBLIN["attack"]
         distance = 5 * max(abs(actor["position"][0] - target["position"][0]),
                            abs(actor["position"][1] - target["position"][1]))
-        if distance > weapon["reach"]:
-            raise SessionError("Target is outside weapon reach")
+        ranged_disadvantage = False
+        ammunition_after = None
+        if "reach" in weapon:
+            if distance > weapon["reach"]:
+                raise SessionError("Target is outside weapon reach")
+        elif weapon["id"] == "longbow" and actor["combatant_id"] == hero["id"]:
+            if distance > weapon["range_long"]:
+                raise SessionError("Target is outside longbow range")
+            arrows = hero["resources"]["ammunition_arrow"]["current"]
+            if arrows < 1:
+                raise SessionError("No arrows remain")
+            ammunition_after = arrows - 1
+            if distance > weapon["range_normal"] or (distance <= 5 and target["hp"] > 0):
+                ranged_disadvantage = True
+        else:
+            raise SessionError("Selected weapon attack mode is not implemented")
         unconscious_target = target_id == hero["id"] and target["hp"] == 0
         if unconscious_target and (combat.get("death_saves") or {}).get("dead"):
             raise SessionError("Character is already dead")
         outcome = resolve_attack(combat, actor["combatant_id"], target_id, weapon,
                                  mode=mode, roller=roller,
-                                 target_unconscious=unconscious_target)
+                                 target_unconscious=unconscious_target,
+                                 extra_disadvantage=ranged_disadvantage)
+        if ammunition_after is not None:
+            outcome["ammunition_arrow_after"] = ammunition_after
         if target_id == hero["id"] and outcome["hp_after"] == 0 and outcome["hp_before"] > 0:
             effective_damage = outcome["damage"] - (outcome["temp_hp_before"] - outcome["temp_hp_after"])
             remaining = effective_damage - outcome["hp_before"]
@@ -270,6 +287,8 @@ def move_combat(directory, operation_id: str, path: list, *, use_reaction: bool 
                 if enemy["combatant_id"] == hero["id"] and use_reaction is None:
                     raise SessionError("Ask the player whether to use their opportunity attack")
                 if enemy["combatant_id"] != hero["id"] or use_reaction:
+                    if enemy["combatant_id"] == hero["id"] and hero["source_choices"]["weapon"] == "longbow":
+                        raise SessionError("A held longbow cannot make the verified melee opportunity attack")
                     weapon = (hero["derived"]["attacks"][0] if enemy["combatant_id"] == hero["id"]
                               else GOBLIN["attack"])
                     opportunity = resolve_attack(combat, enemy["combatant_id"],
@@ -449,6 +468,27 @@ def recover_stable(directory, operation_id: str, *, roller=None):
                     rules=["combat.death_saves", "adventuring.rest"])
 
 
+def search_battlefield(directory, operation_id: str):
+    """Spend one minute recovering half the arrows expended in the last victory."""
+    def resolve(state, _events):
+        hero = _hero(state)
+        resources = hero["resources"]
+        if (state["combat"] is not None or hero.get("life_state") in ("dead", "stable") or
+                state["scene"]["location_id"] != "forest_path" or
+                "recoverable_arrow" not in resources or
+                resources["recoverable_arrow"]["current"] <= 0):
+            raise SessionError("No recoverable arrows here")
+        recovered = resources["recoverable_arrow"]["current"]
+        if resources["ammunition_arrow"]["current"] + recovered > resources["ammunition_arrow"]["max"]:
+            raise SessionError("Arrow capacity would be exceeded")
+        started = state["world_time"] or 0
+        return {"recovered": recovered, "started_at": started, "completed_at": started + 1,
+                "public_view": {"summary": f"{hero['name']}搜索战场一分钟，找回{recovered}支箭。"}}
+
+    return transact(directory, operation_id, "equipment.ammunition_recovered", resolve,
+                    rules=["equipment.weapons_armor", "adventuring.exploration"])
+
+
 def main(argv=None) -> int:
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
@@ -456,7 +496,8 @@ def main(argv=None) -> int:
     parser.add_argument("directory")
     parser.add_argument("command", choices=("declare", "narrate", "check", "move", "start-combat",
                                             "attack", "combat-action", "combat-move", "advance", "death-save",
-                                            "second-wind", "short-rest", "long-rest", "end-combat", "recover-stable"))
+                                            "second-wind", "short-rest", "long-rest", "end-combat", "recover-stable",
+                                            "search-battlefield"))
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--text")
     parser.add_argument("--challenge-id")
@@ -487,6 +528,7 @@ def main(argv=None) -> int:
                 "long-rest": lambda: long_rest(args.directory, args.operation_id),
                 "end-combat": lambda: end_encounter(args.directory, args.operation_id)}
     commands["recover-stable"] = lambda: recover_stable(args.directory, args.operation_id)
+    commands["search-battlefield"] = lambda: search_battlefield(args.directory, args.operation_id)
     try:
         event, state = commands[args.command]()
     except (SessionError, StateError, CombatError, ValueError, KeyError, TypeError) as exc:

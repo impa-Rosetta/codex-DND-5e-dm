@@ -78,6 +78,32 @@ class CharacterTests(unittest.TestCase):
         self.assertEqual(styles["dueling"], "buildable")
         self.assertEqual(styles["protection"], "indexed_only")
 
+    def test_human_fighter_archer_has_legal_leather_package_and_ammunition(self):
+        data = hero()
+        data.update(fighting_style="archery", armor="leather_armor", shield=False,
+                    weapon="longbow")
+        card = character.build(data)
+        self.assertEqual(card["derived"]["ac"], 13)
+        self.assertEqual(card["derived"]["speed"], 30)
+        bow = next(attack for attack in card["derived"]["attacks"] if attack["id"] == "longbow")
+        self.assertEqual(bow["attack_bonus"], 6)
+        self.assertEqual(bow["damage_bonus"], 2)
+        self.assertEqual((bow["range_normal"], bow["range_long"]), (150, 600))
+        self.assertEqual(card["resources"]["ammunition_arrow"]["current"], 20)
+        self.assertIn({"id": "arrow", "quantity": 20}, card["equipment"])
+        self.assertIn({"id": "shield", "quantity": 1}, card["equipment"])
+
+    def test_archer_cannot_wield_bow_with_donned_shield_or_chain_package(self):
+        data = hero()
+        data.update(fighting_style="archery", armor="leather_armor", shield=True,
+                    weapon="longbow")
+        with self.assertRaises(character.CharacterError):
+            character.build(data)
+        data["shield"] = False
+        data["armor"] = "chain_mail"
+        with self.assertRaises(character.CharacterError):
+            character.build(data)
+
 
 if __name__ == "__main__":
     unittest.main()
