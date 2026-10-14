@@ -423,6 +423,64 @@ class SessionTests(unittest.TestCase):
         with self.assertRaises(session.SessionError):
             session.recover_stable(self.path, operation(), roller=lambda _: 1)
 
+    def test_goblin_movement_requires_player_opportunity_choice(self):
+        self._reach_forest()
+        initiative = iter([1, 20])
+        _, snapshot = session.start_encounter(self.path, operation(),
+                                               roller=lambda _: next(initiative))
+        goblin = snapshot["combat"]["combatants"][0]
+        before = snapshot["revision"]
+        with self.assertRaises(session.SessionError):
+            session.move_combat(self.path, operation(), [[2, 0]])
+        self.assertEqual(state.load(self.path)[1]["revision"], before)
+        event, snapshot = session.move_combat(self.path, operation(), [[2, 0]],
+                                               use_reaction=False)
+        self.assertIsNone(event["payload"]["opportunity_attack"])
+        self.assertEqual(snapshot["combat"]["combatants"][0]["position"], [2, 0])
+        self.assertFalse(next(u for u in snapshot["combat"]["combatants"]
+                              if u["combatant_id"] == self.hero_id)["reaction_used"])
+        self.assertEqual(goblin["combatant_id"], snapshot["combat"]["combatants"][0]["combatant_id"])
+
+    def test_player_opportunity_attack_is_audited_with_goblin_movement(self):
+        self._reach_forest()
+        initiative = iter([1, 20])
+        session.start_encounter(self.path, operation(), roller=lambda _: next(initiative))
+        rolls = iter([14, 2])
+        event, snapshot = session.move_combat(self.path, operation(), [[2, 0]],
+                                               use_reaction=True, roller=lambda _: next(rolls))
+        self.assertEqual(event["payload"]["opportunity_attack"]["damage"], 5)
+        self.assertEqual(snapshot["combat"]["combatants"][0]["hp"], 2)
+        self.assertEqual(snapshot["combat"]["combatants"][0]["position"], [2, 0])
+        self.assertTrue(next(u for u in snapshot["combat"]["combatants"]
+                             if u["combatant_id"] == self.hero_id)["reaction_used"])
+        self.assertEqual(state.load(self.path)[1]["combat"]["combatants"][0]["hp"], 2)
+        manifest, reloaded, _ = state.load(self.path)
+        public = state.public_snapshot(reloaded, manifest)
+        self.assertEqual(public["combat"]["combatants"][0]["position"], [2, 0])
+        self.assertTrue(next(u for u in public["combat"]["combatants"]
+                             if u["combatant_id"] == self.hero_id)["reaction_used"])
+
+    def test_player_opportunity_kill_stops_goblin_before_departure(self):
+        self._reach_forest()
+        initiative = iter([1, 20])
+        session.start_encounter(self.path, operation(), roller=lambda _: next(initiative))
+        rolls = iter([20, 5, 5])
+        event, snapshot = session.move_combat(self.path, operation(), [[2, 0]],
+                                               use_reaction=True, roller=lambda _: next(rolls))
+        self.assertEqual(event["payload"]["feet"], 0)
+        self.assertEqual(snapshot["combat"]["combatants"][0]["hp"], 0)
+        self.assertEqual(snapshot["combat"]["combatants"][0]["position"], [1, 0])
+        session.end_encounter(self.path, operation())
+
+    def test_goblin_disengage_avoids_player_reaction(self):
+        self._reach_forest()
+        initiative = iter([1, 20])
+        session.start_encounter(self.path, operation(), roller=lambda _: next(initiative))
+        session.combat_action(self.path, operation(), "disengage")
+        event, snapshot = session.move_combat(self.path, operation(), [[2, 0]])
+        self.assertIsNone(event["payload"]["opportunity_attack"])
+        self.assertEqual(snapshot["combat"]["combatants"][0]["position"], [2, 0])
+
 
 if __name__ == "__main__":
     unittest.main()

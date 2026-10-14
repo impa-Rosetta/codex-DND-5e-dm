@@ -227,11 +227,12 @@ def apply_event(state: dict, event: dict) -> dict:
             enemy["reaction_used"] = True
             actor["hp"] = opportunity["hp_after"]
             actor["temp_hp"] = opportunity["temp_hp_after"]
-            resources = result["character"]["resources"]
-            resources["hp"]["current"] = opportunity["hp_after"]
-            resources["temp_hp"]["current"] = opportunity["temp_hp_after"]
-            if "death_saves_after" in opportunity:
-                combat["death_saves"] = copy.deepcopy(opportunity["death_saves_after"])
+            if actor["combatant_id"] == result["character"]["id"]:
+                resources = result["character"]["resources"]
+                resources["hp"]["current"] = opportunity["hp_after"]
+                resources["temp_hp"]["current"] = opportunity["temp_hp_after"]
+                if "death_saves_after" in opportunity:
+                    combat["death_saves"] = copy.deepcopy(opportunity["death_saves_after"])
         actor["position"] = copy.deepcopy(payload["to"])
         combat["movement_used"] += payload["feet"]
     elif kind == "combat.death_save_resolved":
@@ -385,7 +386,8 @@ def public_snapshot(state: dict, manifest: dict) -> dict:
         combat = {"round": combat["round"], "turn_index": combat["turn_index"],
                   "death_saves": combat.get("death_saves"),
                   "combatants": [{key: unit.get(key) for key in
-                                   ("combatant_id", "name", "hp", "temp_hp", "ac", "position")}
+                                   ("combatant_id", "name", "hp", "temp_hp", "ac", "position",
+                                    "speed", "reaction_used", "dodging")}
                                   for unit in combat["combatants"]]}
     return {"schema_version": 1, "campaign_id": manifest["campaign_id"],
             "name": manifest["name"], "revision": state["revision"],

@@ -204,25 +204,27 @@ def attack(directory, operation_id: str, target_id: str, *, mode="normal", rolle
 def combat_action(directory, operation_id: str, action: str):
     if action not in ("dash", "disengage", "dodge"):
         raise SessionError("Unsupported combat action")
+    labels = {"dash": "疾走", "disengage": "撤离", "dodge": "闪避"}
 
     def resolve(state, _events):
-        hero = _hero(state)
+        _hero(state)
         combat = state["combat"]
         if combat is None:
             raise SessionError("No active combat")
         actor = combat["combatants"][combat["turn_index"]]
-        if actor["combatant_id"] != hero["id"] or actor["hp"] <= 0:
-            raise SessionError("Combat action requires a conscious hero's turn")
+        if actor["hp"] <= 0:
+            raise SessionError("Combat action requires a conscious actor's turn")
         if combat["action_used"]:
             raise SessionError("Action already used this turn")
-        return {"actor_combatant_id": hero["id"], "action": action,
-                "public_view": {"summary": f"{hero['name']}采取{action}动作。"}}
+        return {"actor_combatant_id": actor["combatant_id"], "action": action,
+                "public_view": {"summary": f"{actor['name']}采取{labels[action]}动作。"}}
 
     return transact(directory, operation_id, "combat.action_taken", resolve,
                     rules=["combat.initiative_turn", "combat.movement_position"])
 
 
-def move_combat(directory, operation_id: str, path: list, *, roller=None):
+def move_combat(directory, operation_id: str, path: list, *, use_reaction: bool | None = None,
+                roller=None):
     """Walk a 5-foot square path in the old-mill open encounter grid."""
     def resolve(state, _events):
         hero = _hero(state)
@@ -230,8 +232,10 @@ def move_combat(directory, operation_id: str, path: list, *, roller=None):
         if combat is None:
             raise SessionError("No active combat")
         actor = combat["combatants"][combat["turn_index"]]
-        if actor["combatant_id"] != hero["id"] or actor["hp"] <= 0:
-            raise SessionError("Movement requires a conscious hero's turn")
+        if actor["hp"] <= 0:
+            raise SessionError("Movement requires a conscious actor's turn")
+        if use_reaction is not None and type(use_reaction) is not bool:
+            raise SessionError("Reaction choice must be true or false")
         if not isinstance(path, list) or not 1 <= len(path) <= 100:
             raise SessionError("Path requires one or more grid squares")
         origin = list(actor["position"])
@@ -241,7 +245,7 @@ def move_combat(directory, operation_id: str, path: list, *, roller=None):
                     any(type(n) is not int or abs(n) > 100 for n in square) or
                     max(abs(square[0] - previous[0]), abs(square[1] - previous[1])) != 1):
                 raise SessionError("Path must use adjacent 5-foot grid squares")
-            if any(unit["combatant_id"] != hero["id"] and unit["hp"] > 0 and
+            if any(unit["combatant_id"] != actor["combatant_id"] and unit["hp"] > 0 and
                    unit["position"] == square for unit in combat["combatants"]):
                 raise SessionError("Cannot enter a hostile occupied square")
             previous = square
@@ -250,35 +254,43 @@ def move_combat(directory, operation_id: str, path: list, *, roller=None):
         if combat["movement_used"] + feet > allowed:
             raise SessionError("Movement exceeds this turn's speed")
         enemy = next((unit for unit in combat["combatants"]
-                      if unit["combatant_id"] != hero["id"] and unit["hp"] > 0), None)
+                      if unit["combatant_id"] != actor["combatant_id"] and unit["hp"] > 0), None)
         opportunity = None
         traveled = []
         previous = origin
         for square in path:
-            leaving_reach = (enemy is not None and not actor.get("disengaged") and
+            leaving_reach = (enemy is not None and opportunity is None and
+                             not actor.get("disengaged") and
                              not enemy.get("reaction_used") and
                              max(abs(previous[0] - enemy["position"][0]),
                                  abs(previous[1] - enemy["position"][1])) == 1 and
                              max(abs(square[0] - enemy["position"][0]),
                                  abs(square[1] - enemy["position"][1])) > 1)
             if leaving_reach:
-                opportunity = resolve_attack(combat, enemy["combatant_id"], hero["id"],
-                                             GOBLIN["attack"], roller=roller, reaction=True)
-                if opportunity["hp_after"] == 0:
+                if enemy["combatant_id"] == hero["id"] and use_reaction is None:
+                    raise SessionError("Ask the player whether to use their opportunity attack")
+                if enemy["combatant_id"] != hero["id"] or use_reaction:
+                    weapon = (hero["derived"]["attacks"][0] if enemy["combatant_id"] == hero["id"]
+                              else GOBLIN["attack"])
+                    opportunity = resolve_attack(combat, enemy["combatant_id"],
+                                                 actor["combatant_id"], weapon,
+                                                 roller=roller, reaction=True)
+                if opportunity is not None and opportunity["hp_after"] == 0:
                     remaining = (opportunity["damage"] -
                                  (opportunity["temp_hp_before"] - opportunity["temp_hp_after"]) -
                                  opportunity["hp_before"])
-                    opportunity["death_saves_after"] = {
-                        "successes": 0, "failures": 0, "stable": False,
-                        "dead": remaining >= hero["resources"]["hp"]["max"]}
+                    if actor["combatant_id"] == hero["id"]:
+                        opportunity["death_saves_after"] = {
+                            "successes": 0, "failures": 0, "stable": False,
+                            "dead": remaining >= hero["resources"]["hp"]["max"]}
                     break
             traveled.append(square)
             previous = square
-        return {"actor_combatant_id": hero["id"], "from": origin,
+        return {"actor_combatant_id": actor["combatant_id"], "from": origin,
                 "to": traveled[-1] if traveled else origin,
                 "path": traveled, "feet": 5 * len(traveled),
                 "opportunity_attack": opportunity,
-                "public_view": {"summary": f"{hero['name']}移动了{5 * len(traveled)}英尺。" +
+                "public_view": {"summary": f"{actor['name']}移动了{5 * len(traveled)}英尺。" +
                                 (" 触发借机攻击。" if opportunity else ""),
                                 "position": traveled[-1] if traveled else origin,
                                 "opportunity_attack": opportunity["public_view"] if opportunity else None}}
@@ -452,6 +464,8 @@ def main(argv=None) -> int:
     parser.add_argument("--target-id")
     parser.add_argument("--action", choices=("dash", "disengage", "dodge"))
     parser.add_argument("--path", help="JSON array of adjacent [x,y] grid squares")
+    parser.add_argument("--reaction", choices=("accept", "decline"),
+                        help="Player's decision when a goblin leaves the hero's reach")
     parser.add_argument("--mode", choices=("normal", "advantage", "disadvantage"), default="normal")
     parser.add_argument("--spend-hit-die", action="store_true")
     args = parser.parse_args(argv)
@@ -463,7 +477,8 @@ def main(argv=None) -> int:
                 "attack": lambda: attack(args.directory, args.operation_id, args.target_id, mode=args.mode),
                 "combat-action": lambda: combat_action(args.directory, args.operation_id, args.action),
                 "combat-move": lambda: move_combat(args.directory, args.operation_id,
-                                                     json.loads(args.path) if args.path else None),
+                                                     json.loads(args.path) if args.path else None,
+                                                     use_reaction={"accept": True, "decline": False}.get(args.reaction)),
                 "advance": lambda: advance_turn(args.directory, args.operation_id),
                 "death-save": lambda: death_save(args.directory, args.operation_id),
                 "second-wind": lambda: second_wind(args.directory, args.operation_id),
