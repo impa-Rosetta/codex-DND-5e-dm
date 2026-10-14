@@ -1,8 +1,9 @@
 const $ = id => document.getElementById(id);
 const abilities = {str: '力量', dex: '敏捷', con: '体质', int: '智力', wis: '感知', cha: '魅力'};
-const labels = {human: '人类', fighter: '战士', acolyte: '侍僧',
+const labels = {human: '人类', fighter: '战士', barbarian: '野蛮人', acolyte: '侍僧',
   old_mill: '旧磨坊路口', forest_path: '林中岔路',
-  second_wind: '第二春', hit_dice_d10: '生命骰 d10',
+  second_wind: '第二春', rage: '狂暴次数', hit_dice_d10: '生命骰 d10',
+  hit_dice_d12: '生命骰 d12',
   ammunition_arrow: '箭矢', recoverable_arrow: '可找回箭矢'};
 let lastRevision = -1;
 
@@ -57,8 +58,9 @@ function render(data) {
       const position = Array.isArray(unit.position) ? `格 (${unit.position.join(', ')})` : '位置未知';
       const reaction = unit.reaction_used ? ' · 反应已用' : '';
       const dodge = unit.dodging ? ' · 闪避中' : '';
+      const rage = fight.rage_active && unit.combatant_id === character?.id ? ' · 狂暴中' : '';
       return node('div', 'combatant' + (index === fight.turn_index ? ' active' : ''),
-        `${unit.name} · HP ${unit.hp} · AC ${unit.ac} · ${position}${reaction}${dodge}`);
+        `${unit.name} · HP ${unit.hp} · AC ${unit.ac} · ${position}${reaction}${dodge}${rage}`);
     }));
   } else {
     combatants.className = 'empty';

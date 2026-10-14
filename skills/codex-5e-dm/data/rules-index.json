@@ -42,6 +42,8 @@
     {"id":"class.fighter.style.protection","kind":"entry","section":"Classes > Fighter > Fighting Style > Protection","m2_required":true,"status":"indexed_only"},
     {"id":"class.fighter.style.two_weapon_fighting","kind":"entry","section":"Classes > Fighter > Fighting Style > Two-Weapon Fighting","m2_required":true,"status":"indexed_only"},
     {"id":"class.barbarian","kind":"entry","section":"Classes > Barbarian","m2_required":true,"status":"indexed_only"},
+    {"id":"class.barbarian.rage","kind":"entry","section":"Classes > Barbarian > Rage","m2_required":true,"status":"indexed_only"},
+    {"id":"class.barbarian.unarmored_defense","kind":"entry","section":"Classes > Barbarian > Unarmored Defense","m2_required":true,"status":"indexed_only"},
     {"id":"class.bard","kind":"entry","section":"Classes > Bard","m2_required":true,"status":"indexed_only"},
     {"id":"class.cleric","kind":"entry","section":"Classes > Cleric","m2_required":true,"status":"indexed_only"},
     {"id":"class.druid","kind":"entry","section":"Classes > Druid","m2_required":true,"status":"indexed_only"},

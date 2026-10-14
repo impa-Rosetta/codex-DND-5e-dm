@@ -50,7 +50,8 @@ def make_initiative(combatants: list[dict], *, roller=None) -> dict:
 def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
                    *, mode: str = "normal", roller=None, reaction: bool = False,
                    target_unconscious: bool = False,
-                   extra_disadvantage: bool = False) -> dict:
+                   extra_disadvantage: bool = False,
+                   damage_resistance: bool = False) -> dict:
     if not combat or not combat.get("combatants"):
         raise CombatError("No active combat")
     current = combat["combatants"][combat["turn_index"]]
@@ -87,10 +88,12 @@ def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
     critical = hit and (natural == 20 or target_unconscious)
     damage = None
     amount = 0
+    rolled_damage = 0
     if hit:
         damage = roll_dice(f"{2 if critical else 1}d{die}{damage_bonus:+d}",
                            purpose="damage", roller=roller)
-        amount = max(0, damage["total"])
+        rolled_damage = max(0, damage["total"])
+        amount = rolled_damage // 2 if damage_resistance else rolled_damage
     temp_before = target.get("temp_hp", 0)
     absorbed = min(temp_before, amount)
     hp_before = target["hp"]
@@ -98,7 +101,8 @@ def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
     return {"actor_combatant_id": actor_id, "target_combatant_id": target_id,
             "target_ac": target["ac"], "weapon_name": weapon.get("name", "weapon"),
             "hit": hit, "critical": critical, "dice": [attack] + ([damage] if damage else []),
-            "damage": amount, "hp_before": hp_before, "hp_after": hp_after,
+            "damage": amount, "rolled_damage": rolled_damage,
+            "hp_before": hp_before, "hp_after": hp_after,
             "temp_hp_before": temp_before, "temp_hp_after": temp_before - absorbed,
             "public_view": {"summary": f"{acting['name']}攻击{target['name']}：{'命中' if hit else '未命中'}，造成{amount}点伤害。",
                             "attack_total": attack["total"], "damage": amount,

@@ -24,7 +24,8 @@ class CatalogTests(unittest.TestCase):
     def test_catalog_does_not_call_unimplemented_options_buildable(self):
         value = character.options()
         self.assertEqual({item["id"] for item in value["races"] if item["status"] == "buildable"}, {"human"})
-        self.assertEqual({item["id"] for item in value["classes"] if item["status"] == "buildable"}, {"fighter"})
+        self.assertEqual({item["id"] for item in value["classes"] if item["status"] == "buildable"},
+                         {"fighter", "barbarian"})
         self.assertEqual({item["id"] for item in value["backgrounds"] if item["status"] == "buildable"}, {"acolyte"})
 
 

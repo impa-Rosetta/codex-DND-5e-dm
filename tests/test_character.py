@@ -32,7 +32,8 @@ class CharacterTests(unittest.TestCase):
     def test_all_base_classes_listed_but_not_falsely_buildable(self):
         value = character.options()
         self.assertEqual(len(value["classes"]), 12)
-        self.assertEqual([c["id"] for c in value["classes"] if c["status"] == "buildable"], ["fighter"])
+        self.assertEqual({c["id"] for c in value["classes"] if c["status"] == "buildable"},
+                         {"fighter", "barbarian"})
         data = hero(); data["class"] = "wizard"
         with self.assertRaises(character.CharacterError) as caught:
             character.build(data)
@@ -97,6 +98,32 @@ class CharacterTests(unittest.TestCase):
         data = hero()
         data.update(fighting_style="archery", armor="leather_armor", shield=True,
                     weapon="longbow")
+        with self.assertRaises(character.CharacterError):
+            character.build(data)
+
+    def test_human_barbarian_fixed_greataxe_route(self):
+        data = hero()
+        data.update(**{"class": "barbarian", "class_skills": ["athletics", "perception"],
+                       "armor": "none", "shield": False, "weapon": "greataxe"})
+        del data["fighting_style"]
+        card = character.build(data)
+        self.assertEqual(card["derived"]["max_hp"], 14)
+        self.assertEqual(card["derived"]["ac"], 14)
+        self.assertEqual(card["derived"]["hit_die"], "d12")
+        self.assertEqual(card["derived"]["attacks"][0]["damage_die"], 12)
+        self.assertEqual(card["resources"]["rage"]["current"], 2)
+        self.assertEqual(card["resources"]["hit_dice_d12"]["current"], 1)
+        self.assertIn("class.barbarian.rage", card["rule_ids"])
+        self.assertIn({"id": "javelin", "quantity": 4}, card["equipment"])
+
+    def test_barbarian_rejects_fighter_style_or_illegal_skill(self):
+        data = hero()
+        data.update(**{"class": "barbarian", "class_skills": ["athletics", "perception"],
+                       "armor": "none", "shield": False, "weapon": "greataxe"})
+        with self.assertRaises(character.CharacterError):
+            character.build(data)
+        del data["fighting_style"]
+        data["class_skills"] = ["acrobatics", "perception"]
         with self.assertRaises(character.CharacterError):
             character.build(data)
         data["shield"] = False

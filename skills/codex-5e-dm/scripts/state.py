@@ -207,6 +207,10 @@ def apply_event(state: dict, event: dict) -> dict:
             arrows["current"] = payload["ammunition_arrow_after"]
             result["combat"]["arrows_expended"] = result["combat"].get("arrows_expended", 0) + 1
         target = payload["target_combatant_id"]
+        if result["combat"].get("rage_active"):
+            hero_id = result["character"]["id"]
+            if payload["actor_combatant_id"] == hero_id or (target == hero_id and payload["damage"] > 0):
+                result["combat"]["rage_sustained"] = True
         for combatant in result["combat"]["combatants"]:
             if combatant["combatant_id"] == target:
                 combatant["hp"] = payload["hp_after"]
@@ -220,8 +224,16 @@ def apply_event(state: dict, event: dict) -> dict:
         else:
             raise StateError("Unknown target combatant")
         result["combat"]["action_used"] = True
+        if target == result["character"]["id"] and payload["hp_after"] == 0:
+            result["combat"]["rage_active"] = False
     elif kind == "turn.advanced":
         previous_actor = result["combat"]["combatants"][result["combat"]["turn_index"]]
+        if previous_actor["combatant_id"] == result["character"]["id"] and result["combat"].get("rage_active"):
+            if not result["combat"]["rage_sustained"] or result["combat"]["rage_rounds_remaining"] <= 1:
+                result["combat"]["rage_active"] = False
+            else:
+                result["combat"]["rage_rounds_remaining"] -= 1
+                result["combat"]["rage_sustained"] = False
         previous_actor["disengaged"] = False
         previous_actor["dashed"] = False
         result["combat"]["turn_index"] = payload["turn_index"]
@@ -253,6 +265,10 @@ def apply_event(state: dict, event: dict) -> dict:
             if enemy is None or enemy.get("reaction_used"):
                 raise StateError("Invalid opportunity attack reaction")
             enemy["reaction_used"] = True
+            if combat.get("rage_active"):
+                hero_id = result["character"]["id"]
+                if enemy["combatant_id"] == hero_id or (actor["combatant_id"] == hero_id and opportunity["damage"] > 0):
+                    combat["rage_sustained"] = True
             actor["hp"] = opportunity["hp_after"]
             actor["temp_hp"] = opportunity["temp_hp_after"]
             if actor["combatant_id"] == result["character"]["id"]:
@@ -261,6 +277,8 @@ def apply_event(state: dict, event: dict) -> dict:
                 resources["temp_hp"]["current"] = opportunity["temp_hp_after"]
                 if "death_saves_after" in opportunity:
                     combat["death_saves"] = copy.deepcopy(opportunity["death_saves_after"])
+                if opportunity["hp_after"] == 0:
+                    combat["rage_active"] = False
         actor["position"] = copy.deepcopy(payload["to"])
         combat["movement_used"] += payload["feet"]
     elif kind == "combat.death_save_resolved":
@@ -282,11 +300,22 @@ def apply_event(state: dict, event: dict) -> dict:
             if combatant["combatant_id"] == character["id"]:
                 combatant["hp"] = payload["hp_after"]
                 break
+    elif kind == "barbarian.rage_started":
+        combat = result["combat"]
+        resources = result["character"]["resources"]
+        if combat is None or combat.get("rage_active") or resources["rage"]["current"] < 1:
+            raise StateError("Invalid rage event")
+        resources["rage"]["current"] -= 1
+        combat["rage_active"] = True
+        combat["rage_sustained"] = False
+        combat["rage_rounds_remaining"] = 10
+        combat["bonus_action_used"] = True
     elif kind == "rest.short_completed":
         resources = result["character"]["resources"]
         resources["hp"]["current"] = payload["hp_after"]
-        resources["second_wind"]["current"] = 1
-        resources["hit_dice_d10"]["current"] = payload["hit_dice_after"]
+        if "second_wind" in resources:
+            resources["second_wind"]["current"] = 1
+        resources[payload.get("hit_die_key", "hit_dice_d10")]["current"] = payload["hit_dice_after"]
         result["world_time"] = (result["world_time"] or 0) + 60
     elif kind == "rest.long_completed":
         if payload["started_at"] != (result["world_time"] or 0) or payload["completed_at"] != payload["started_at"] + 480:
@@ -294,8 +323,11 @@ def apply_event(state: dict, event: dict) -> dict:
         resources = result["character"]["resources"]
         resources["hp"]["current"] = payload["hp_after"]
         resources["temp_hp"]["current"] = payload["temp_hp_after"]
-        resources["second_wind"]["current"] = resources["second_wind"]["max"]
-        resources["hit_dice_d10"]["current"] = payload["hit_dice_after"]
+        if "second_wind" in resources:
+            resources["second_wind"]["current"] = resources["second_wind"]["max"]
+        if "rage" in resources:
+            resources["rage"]["current"] = resources["rage"]["max"]
+        resources[payload.get("hit_die_key", "hit_dice_d10")]["current"] = payload["hit_dice_after"]
         result["world_time"] = payload["completed_at"]
         result["last_long_rest_start"] = payload["started_at"]
     elif kind == "position.changed":
@@ -384,7 +416,8 @@ def transact(directory: str | Path, operation_id: str, kind: str, payload_factor
                  "operation_id": operation_id, "timestamp": _utc(), "type": kind,
                  "visibility": visibility,
                  "actor_id": actor_id or (payload["character"]["id"] if kind == "character.created" else None),
-                 "causation_event_id": causation_event_id, "rules": rules or [], "payload": payload}
+                 "causation_event_id": causation_event_id,
+                 "rules": (rules(state, payload) if callable(rules) else rules) or [], "payload": payload}
         next_state = apply_event(state, event)
         encoded = (json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
         with (path / "events.jsonl").open("ab") as stream:
@@ -413,6 +446,7 @@ def public_snapshot(state: dict, manifest: dict) -> dict:
     if combat is not None:
         combat = {"round": combat["round"], "turn_index": combat["turn_index"],
                   "death_saves": combat.get("death_saves"),
+                  "rage_active": combat.get("rage_active", False),
                   "combatants": [{key: unit.get(key) for key in
                                    ("combatant_id", "name", "hp", "temp_hp", "ac", "position",
                                     "speed", "reaction_used", "dodging")}
@@ -437,8 +471,7 @@ def confirm_character(directory: str | Path, operation_id: str, choices: dict) -
                 "public_view": {"summary": f"{card['name']}加入冒险。"}}
 
     return transact(directory, operation_id, "character.created", construct,
-                    rules=["race.human", "class.fighter", "background.acolyte",
-                           "character.ability_scores", "character.proficiency", "equipment.weapons_armor"])
+                    rules=lambda _state, payload: payload["character"]["rule_ids"])
 
 
 def _sibling_module(name: str):

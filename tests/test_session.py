@@ -566,6 +566,92 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(shot["payload"]["damage"], 6)
         self.assertEqual(snapshot["combat"]["combatants"][1]["hp"], 1)
 
+    def _barbarian_campaign(self, name):
+        barbarian_path = Path(self.temp.name) / name
+        state.create(barbarian_path, "野蛮人")
+        choices = hero()
+        choices.update(**{"class": "barbarian", "armor": "none", "shield": False,
+                          "weapon": "greataxe"})
+        del choices["fighting_style"]
+        state.confirm_character(barbarian_path, operation(), choices)
+        session.check(barbarian_path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(barbarian_path, operation(), "forest_path")
+        return barbarian_path
+
+    def test_barbarian_rage_damage_resistance_and_persistence(self):
+        path = self._barbarian_campaign("barbarian_rage")
+        initiative = iter([20, 1])
+        _, snapshot = session.start_encounter(path, operation(), roller=lambda _: next(initiative))
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != snapshot["character"]["id"])
+        rage, snapshot = session.rage(path, operation())
+        self.assertEqual(rage["type"], "barbarian.rage_started")
+        self.assertEqual(snapshot["character"]["resources"]["rage"]["current"], 1)
+        self.assertTrue(snapshot["combat"]["rage_active"])
+        attack_rolls = iter([10, 1])
+        attack, snapshot = session.attack(path, operation(), goblin_id,
+                                          roller=lambda _: next(attack_rolls))
+        self.assertEqual(attack["payload"]["damage"], 6)
+        session.advance_turn(path, operation())
+        goblin_rolls = iter([15, 5])
+        hit, snapshot = session.attack(path, operation(), snapshot["character"]["id"],
+                                       roller=lambda _: next(goblin_rolls))
+        self.assertEqual(hit["payload"]["rolled_damage"], 7)
+        self.assertEqual(hit["payload"]["damage"], 3)
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 11)
+        self.assertTrue(state.load(path)[1]["combat"]["rage_active"])
+
+    def test_barbarian_rage_ends_after_idle_turn_but_use_is_spent(self):
+        path = self._barbarian_campaign("barbarian_idle")
+        initiative = iter([20, 1])
+        session.start_encounter(path, operation(), roller=lambda _: next(initiative))
+        session.rage(path, operation())
+        _, snapshot = session.advance_turn(path, operation())
+        self.assertFalse(snapshot["combat"]["rage_active"])
+        self.assertEqual(snapshot["character"]["resources"]["rage"]["current"], 1)
+        self.assertFalse(state.load(path)[1]["combat"]["rage_active"])
+
+    def test_barbarian_rage_is_one_bonus_action_and_is_replayable(self):
+        path = self._barbarian_campaign("barbarian_retry")
+        initiative = iter([20, 1])
+        session.start_encounter(path, operation(), roller=lambda _: next(initiative))
+        rage_id = operation()
+        first, snapshot = session.rage(path, rage_id)
+        repeated, snapshot = session.rage(path, rage_id)
+        self.assertEqual(first["event_id"], repeated["event_id"])
+        self.assertEqual(snapshot["character"]["resources"]["rage"]["current"], 1)
+        with self.assertRaises(session.SessionError):
+            session.rage(path, operation())
+        manifest, reloaded, events = state.load(path)
+        self.assertEqual(reloaded["revision"], len(events))
+        self.assertTrue(state.public_snapshot(reloaded, manifest)["combat"]["rage_active"])
+
+    def test_barbarian_cannot_use_second_wind(self):
+        path = self._barbarian_campaign("barbarian_no_wind")
+        initiative = iter([20, 1])
+        session.start_encounter(path, operation(), roller=lambda _: next(initiative))
+        with self.assertRaises(session.SessionError):
+            session.second_wind(path, operation(), roller=lambda _: 5)
+
+    def test_barbarian_d12_hit_die_and_long_rest_restore_rage(self):
+        path = self._barbarian_campaign("barbarian_rest")
+        # A fixed scenario battle is needed to spend a rage use.
+        initiative = iter([20, 1])
+        _, snapshot = session.start_encounter(path, operation(), roller=lambda _: next(initiative))
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != snapshot["character"]["id"])
+        session.rage(path, operation())
+        kill = iter([20, 6, 6])
+        session.attack(path, operation(), goblin_id, roller=lambda _: next(kill))
+        session.end_encounter(path, operation())
+        _, snapshot = session.short_rest(path, operation(), spend_hit_die=True,
+                                         roller=lambda _: 5)
+        self.assertEqual(snapshot["character"]["resources"]["hit_dice_d12"]["current"], 0)
+        self.assertEqual(snapshot["character"]["resources"]["rage"]["current"], 1)
+        _, snapshot = session.long_rest(path, operation())
+        self.assertEqual(snapshot["character"]["resources"]["hit_dice_d12"]["current"], 1)
+        self.assertEqual(snapshot["character"]["resources"]["rage"]["current"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

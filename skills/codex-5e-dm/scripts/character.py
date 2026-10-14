@@ -1,6 +1,6 @@
 """Deterministic, deliberately bounded SRD 5.1 level-one character builder.
 
-Only verified human/fighter/acolyte starting routes are buildable in this
+Only verified human/fighter-or-barbarian/acolyte starting routes are buildable in this
 release. Listing an option never implies complete mechanical implementation.
 """
 
@@ -22,6 +22,8 @@ SKILL_ABILITY = {"acrobatics": "dex", "animal_handling": "wis", "arcana": "int",
                  "religion": "int", "sleight_of_hand": "dex", "stealth": "dex", "survival": "wis"}
 FIGHTER_SKILLS = frozenset(("acrobatics", "animal_handling", "athletics", "history",
                             "insight", "intimidation", "perception", "survival"))
+BARBARIAN_SKILLS = frozenset(("animal_handling", "athletics", "intimidation",
+                              "nature", "perception", "survival"))
 LANGUAGES = frozenset(("dwarvish", "elvish", "giant", "gnomish", "goblin", "halfling",
                        "orc", "abyssal", "celestial", "draconic", "deep_speech", "infernal",
                        "primordial", "sylvan", "undercommon"))
@@ -92,10 +94,11 @@ def options(context: dict | None = None) -> dict:
             "races": data["races"], "classes": data["classes"], "backgrounds": data["backgrounds"],
             "ability_methods": ["standard_array", "point_buy", "rolled"],
             "fighter_skills": sorted(FIGHTER_SKILLS),
+            "barbarian_skills": sorted(BARBARIAN_SKILLS),
             "fighting_styles": [{"id": style, "status": "buildable" if style in ("archery", "defense", "dueling") else "indexed_only"}
                                 for style in sorted(STYLES)],
             "languages": sorted(LANGUAGES),
-            "notice": "Only two human fighter with acolyte starting packages are mechanically verified."}
+            "notice": "Verified fixed routes: human fighter (melee or archery) and human barbarian with acolyte."}
 
 
 def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
@@ -112,11 +115,16 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
         _err("ruleset_mismatch", "ruleset", f"Expected {RULESET}")
     if data.get("schema_version") != 1:
         _err("ruleset_mismatch", "schema_version", "Expected schema version 1")
-    for field, supported in (("race", "human"), ("class", "fighter"), ("background", "acolyte")):
+    for field in ("race", "class", "background"):
         if field not in data:
             _err("missing_choice", field, f"Choose {field}")
-        if data[field] != supported:
-            _err("unsupported_option", field, f"{data[field]} is not mechanically verified yet")
+    if data["race"] != "human":
+        _err("unsupported_option", "race", f"{data['race']} is not mechanically verified yet")
+    if data["class"] not in ("fighter", "barbarian"):
+        _err("unsupported_option", "class", f"{data['class']} is not mechanically verified yet")
+    if data["background"] != "acolyte":
+        _err("unsupported_option", "background", f"{data['background']} is not mechanically verified yet")
+    barbarian = data["class"] == "barbarian"
     name = data.get("name", "")
     backstory = data.get("backstory", "")
     if not isinstance(name, str) or not 1 <= len(name.strip()) <= 80 or not isinstance(backstory, str) or len(backstory) > 2000:
@@ -126,24 +134,34 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
     modifiers = {ability: (score - 10) // 2 for ability, score in scores.items()}
     class_skills = data.get("class_skills")
     _unique(class_skills, "class_skills", 2)
-    if not set(class_skills) <= FIGHTER_SKILLS or set(class_skills) & {"insight", "religion"}:
-        _err("invalid_choice", "class_skills", "Choose two fighter skills not granted by acolyte")
+    allowed_skills = BARBARIAN_SKILLS if barbarian else FIGHTER_SKILLS
+    if not set(class_skills) <= allowed_skills or set(class_skills) & {"insight", "religion"}:
+        _err("invalid_choice", "class_skills", "Choose two class skills not granted by acolyte")
     background_languages = data.get("background_languages")
     _unique(background_languages, "background_languages", 2)
     if not set(background_languages) <= LANGUAGES:
         _err("invalid_choice", "background_languages", "Choose two non-Common standard languages")
     style = data.get("fighting_style")
-    if style not in STYLES:
-        _err("missing_choice", "fighting_style", "Choose one fighter fighting style")
-    if style not in ("archery", "defense", "dueling"):
-        _err("unsupported_option", "fighting_style", "This style's action rules are not implemented")
+    if barbarian:
+        if "fighting_style" in data:
+            _err("invalid_choice", "fighting_style", "Barbarians do not choose a fighting style at level one")
+    else:
+        if style not in STYLES:
+            _err("missing_choice", "fighting_style", "Choose one fighter fighting style")
+        if style not in ("archery", "defense", "dueling"):
+            _err("unsupported_option", "fighting_style", "This style's action rules are not implemented")
     armor = data.get("armor")
     shield = data.get("shield")
     if type(shield) is not bool:
         _err("missing_choice", "shield", "Specify whether shield is equipped")
     weapon = data.get("weapon")
-    archer = style == "archery"
-    if archer:
+    archer = not barbarian and style == "archery"
+    if barbarian:
+        if armor != "none" or shield or weapon != "greataxe":
+            _err("unsupported_option", "armor/shield/weapon",
+                 "Verified barbarian route requires no armor, no shield, and greataxe")
+        ac = 10 + modifiers["dex"] + modifiers["con"]
+    elif archer:
         if armor != "leather_armor" or shield or weapon != "longbow":
             _err("unsupported_option", "armor/shield/weapon",
                  "Verified archery route requires leather armor, no donned shield, and longbow")
@@ -159,60 +177,79 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
               for skill, ability in SKILL_ABILITY.items()}
     saving_throws = {ability: modifiers[ability] + (2 if ability in ("str", "con") else 0)
                      for ability in ABILITIES}
-    hp = max(1, 10 + modifiers["con"])
+    hit_die = "d12" if barbarian else "d10"
+    hp = max(1, (12 if barbarian else 10) + modifiers["con"])
     if armor == "chain_mail" and scores["str"] < 13:
         speed = 20
     else:
         speed = 30
-    equipment = ([{"id": "leather_armor", "quantity": 1},
-                  {"id": "longbow", "quantity": 1}, {"id": "arrow", "quantity": 20}]
-                 if archer else [{"id": "chain_mail", "quantity": 1}])
-    equipment += [{"id": "shield", "quantity": 1},
-                  {"id": "longsword", "quantity": 1},
-                  {"id": "handaxe", "quantity": 2},
-                  {"id": "explorers_pack", "quantity": 1},
-                  {"id": "holy_symbol", "quantity": 1},
+    if barbarian:
+        equipment = [{"id": "greataxe", "quantity": 1},
+                     {"id": "handaxe", "quantity": 2},
+                     {"id": "explorers_pack", "quantity": 1},
+                     {"id": "javelin", "quantity": 4}]
+    else:
+        equipment = ([{"id": "leather_armor", "quantity": 1},
+                      {"id": "longbow", "quantity": 1}, {"id": "arrow", "quantity": 20}]
+                     if archer else [{"id": "chain_mail", "quantity": 1}])
+        equipment += [{"id": "shield", "quantity": 1},
+                      {"id": "longsword", "quantity": 1},
+                      {"id": "handaxe", "quantity": 2},
+                      {"id": "explorers_pack", "quantity": 1}]
+    equipment += [{"id": "holy_symbol", "quantity": 1},
                   {"id": "prayer_book", "quantity": 1},
                   {"id": "incense", "quantity": 5},
                   {"id": "vestments", "quantity": 1},
                   {"id": "common_clothes", "quantity": 1},
                   {"id": "gp", "quantity": 15}]
-    attacks = ([{"id": "longbow", "name": "长弓", "attack_bonus": modifiers["dex"] + 4,
-                 "damage_die": 8, "damage_bonus": modifiers["dex"],
-                 "range_normal": 150, "range_long": 600}]
-               if archer else [])
-    attacks += [{"id": "longsword", "name": "长剑", "attack_bonus": modifiers["str"] + 2,
-                 "damage_die": 8, "damage_bonus": modifiers["str"] + (2 if style == "dueling" else 0),
-                 "reach": 5},
-                {"id": "handaxe", "name": "手斧", "attack_bonus": modifiers["str"] + 2,
-                 "damage_die": 6, "damage_bonus": modifiers["str"],
-                 "range_normal": 20, "range_long": 60}]
+    if barbarian:
+        attacks = [{"id": "greataxe", "name": "巨斧", "attack_bonus": modifiers["str"] + 2,
+                    "damage_die": 12, "damage_bonus": modifiers["str"], "reach": 5,
+                    "damage_type": "slashing"}]
+    else:
+        attacks = ([{"id": "longbow", "name": "长弓", "attack_bonus": modifiers["dex"] + 4,
+                     "damage_die": 8, "damage_bonus": modifiers["dex"],
+                     "range_normal": 150, "range_long": 600, "damage_type": "piercing"}]
+                   if archer else [])
+        attacks += [{"id": "longsword", "name": "长剑", "attack_bonus": modifiers["str"] + 2,
+                     "damage_die": 8, "damage_bonus": modifiers["str"] + (2 if style == "dueling" else 0),
+                     "reach": 5, "damage_type": "slashing"},
+                    {"id": "handaxe", "name": "手斧", "attack_bonus": modifiers["str"] + 2,
+                     "damage_die": 6, "damage_bonus": modifiers["str"],
+                     "range_normal": 20, "range_long": 60, "damage_type": "slashing"}]
     resources = {"hp": {"current": hp, "max": hp},
                  "temp_hp": {"current": 0, "max": None},
-                 "second_wind": {"current": 1, "max": 1, "recovery": "short_or_long_rest"},
-                 "hit_dice_d10": {"current": 1, "max": 1, "recovery": "long_rest"}}
+                 f"hit_dice_{hit_die}": {"current": 1, "max": 1, "recovery": "long_rest"}}
+    if barbarian:
+        resources["rage"] = {"current": 2, "max": 2, "recovery": "long_rest"}
+    else:
+        resources["second_wind"] = {"current": 1, "max": 1, "recovery": "short_or_long_rest"}
     if archer:
         resources["ammunition_arrow"] = {"current": 20, "max": 20,
                                           "recovery": "recover_half_after_battle"}
         resources["recoverable_arrow"] = {"current": 0, "max": 20,
                                            "recovery": "battlefield_search"}
+    source_choices = {"race": "human", "class": data["class"], "background": "acolyte",
+                      "ability_method": data["ability_method"], "base_abilities": base,
+                      "roll_event_id": data.get("roll_event_id"),
+                      "rolled_assignment": data.get("rolled_assignment"),
+                      "class_skills": class_skills, "background_languages": background_languages,
+                      "armor": armor, "shield": shield, "weapon": weapon}
+    if not barbarian:
+        source_choices["fighting_style"] = style
+    rule_ids = ["race.human", f"class.{data['class']}", "background.acolyte",
+                "character.ability_scores", "character.proficiency", "equipment.weapons_armor"]
+    rule_ids += (["class.barbarian.rage", "class.barbarian.unarmored_defense"]
+                 if barbarian else [f"class.fighter.style.{style}"])
     return {"schema_version": 1, "ruleset": RULESET, "catalog_version": "0.1.0-partial",
             "name": name.strip(), "backstory": backstory,
-            "source_choices": {"race": "human", "class": "fighter", "background": "acolyte",
-                               "ability_method": data["ability_method"], "base_abilities": base,
-                               "roll_event_id": data.get("roll_event_id"),
-                               "rolled_assignment": data.get("rolled_assignment"),
-                               "class_skills": class_skills, "background_languages": background_languages,
-                               "fighting_style": style, "armor": armor, "shield": shield,
-                               "weapon": weapon},
+            "source_choices": source_choices,
             "equipment": equipment,
-            "rule_ids": ["race.human", "class.fighter", "background.acolyte",
-                         f"class.fighter.style.{style}", "character.ability_scores",
-                         "character.proficiency", "equipment.weapons_armor"],
+            "rule_ids": rule_ids,
             "derived": {"level": 1, "abilities": scores, "modifiers": modifiers,
                         "proficiency_bonus": 2, "saving_throws": saving_throws, "skills": skills,
                         "passive_perception": 10 + skills["perception"], "initiative": modifiers["dex"],
-                        "ac": ac, "speed": speed, "max_hp": hp, "hit_die": "d10",
+                        "ac": ac, "speed": speed, "max_hp": hp, "hit_die": hit_die,
                         "attacks": attacks,
                         "languages": ["common", *background_languages]},
             "resources": resources}

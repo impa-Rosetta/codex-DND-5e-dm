@@ -20,7 +20,8 @@ from state import StateError, transact
 GOBLIN = {"name": "哥布林", "ac": 15, "hp": 7, "temp_hp": 0,
           "initiative_bonus": 2, "speed": 30,
           "attack": {"id": "scimitar", "name": "弯刀", "attack_bonus": 4,
-                     "damage_die": 6, "damage_bonus": 2, "reach": 5}}
+                     "damage_die": 6, "damage_bonus": 2, "reach": 5,
+                     "damage_type": "slashing"}}
 CHALLENGES = {"find_forest_path": {"location_id": "old_mill", "skill": "perception",
                                     "dc": 12, "discovery": "forest_path",
                                     "summary_success": "你发现通往林中岔路的脚印。",
@@ -118,6 +119,8 @@ def start_encounter(directory, operation_id: str, *, roller=None):
              "speed": GOBLIN["speed"], "position": [1, 0]}], roller=roller)
         fight["death_saves"] = None
         fight["death_save_made"] = False
+        if hero["source_choices"]["class"] == "barbarian":
+            fight.update(rage_active=False, rage_sustained=False, rage_rounds_remaining=0)
         return {"combat": fight,
                 "public_view": {"summary": "哥布林从灌木后现身，战斗开始。",
                                 "initiative": [{"id": unit["combatant_id"], "dice": unit["initiative_roll"]}
@@ -163,7 +166,9 @@ def attack(directory, operation_id: str, target_id: str, *, mode="normal", rolle
         if target is None:
             raise SessionError("Unknown target")
         if actor["combatant_id"] == hero["id"]:
-            weapon = hero["derived"]["attacks"][0]
+            weapon = dict(hero["derived"]["attacks"][0])
+            if combat.get("rage_active") and "reach" in weapon:
+                weapon["damage_bonus"] += 2
         else:
             weapon = GOBLIN["attack"]
         distance = 5 * max(abs(actor["position"][0] - target["position"][0]),
@@ -190,7 +195,11 @@ def attack(directory, operation_id: str, target_id: str, *, mode="normal", rolle
         outcome = resolve_attack(combat, actor["combatant_id"], target_id, weapon,
                                  mode=mode, roller=roller,
                                  target_unconscious=unconscious_target,
-                                 extra_disadvantage=ranged_disadvantage)
+                                 extra_disadvantage=ranged_disadvantage,
+                                 damage_resistance=(combat.get("rage_active", False) and
+                                                    target_id == hero["id"] and
+                                                    weapon.get("damage_type") in
+                                                    ("bludgeoning", "piercing", "slashing")))
         if ammunition_after is not None:
             outcome["ammunition_arrow_after"] = ammunition_after
         if target_id == hero["id"] and outcome["hp_after"] == 0 and outcome["hp_before"] > 0:
@@ -289,11 +298,17 @@ def move_combat(directory, operation_id: str, path: list, *, use_reaction: bool 
                 if enemy["combatant_id"] != hero["id"] or use_reaction:
                     if enemy["combatant_id"] == hero["id"] and hero["source_choices"]["weapon"] == "longbow":
                         raise SessionError("A held longbow cannot make the verified melee opportunity attack")
-                    weapon = (hero["derived"]["attacks"][0] if enemy["combatant_id"] == hero["id"]
+                    weapon = (dict(hero["derived"]["attacks"][0]) if enemy["combatant_id"] == hero["id"]
                               else GOBLIN["attack"])
+                    if enemy["combatant_id"] == hero["id"] and combat.get("rage_active"):
+                        weapon["damage_bonus"] += 2
                     opportunity = resolve_attack(combat, enemy["combatant_id"],
                                                  actor["combatant_id"], weapon,
-                                                 roller=roller, reaction=True)
+                                                 roller=roller, reaction=True,
+                                                 damage_resistance=(actor["combatant_id"] == hero["id"] and
+                                                                    combat.get("rage_active", False) and
+                                                                    weapon.get("damage_type") in
+                                                                    ("bludgeoning", "piercing", "slashing")))
                 if opportunity is not None and opportunity["hp_after"] == 0:
                     remaining = (opportunity["damage"] -
                                  (opportunity["temp_hp_before"] - opportunity["temp_hp_after"]) -
@@ -359,6 +374,8 @@ def death_save(directory, operation_id: str, *, roller=None):
 def second_wind(directory, operation_id: str, *, roller=None):
     def resolve(state, _events):
         hero = _hero(state)
+        if hero["source_choices"]["class"] != "fighter":
+            raise SessionError("Second Wind is a fighter feature")
         combat = state["combat"]
         if combat is None or combat["combatants"][combat["turn_index"]]["combatant_id"] != hero["id"]:
             raise SessionError("Second Wind requires your turn")
@@ -377,18 +394,39 @@ def second_wind(directory, operation_id: str, *, roller=None):
                     rules=["class.fighter", "adventuring.rest"])
 
 
+def rage(directory, operation_id: str):
+    def resolve(state, _events):
+        hero = _hero(state)
+        combat = state["combat"]
+        if hero["source_choices"]["class"] != "barbarian":
+            raise SessionError("Rage is a barbarian feature")
+        if (combat is None or
+                combat["combatants"][combat["turn_index"]]["combatant_id"] != hero["id"] or
+                hero["resources"]["hp"]["current"] <= 0):
+            raise SessionError("Rage requires your conscious combat turn")
+        if (combat["bonus_action_used"] or combat.get("rage_active") or
+                hero["resources"]["rage"]["current"] <= 0):
+            raise SessionError("Rage unavailable")
+        return {"public_view": {"summary": f"{hero['name']}进入狂暴。"}}
+
+    return transact(directory, operation_id, "barbarian.rage_started", resolve,
+                    rules=["class.barbarian.rage"])
+
+
 def short_rest(directory, operation_id: str, *, spend_hit_die=False, roller=None):
     def resolve(state, _events):
         hero = _hero(state)
         if state["combat"] is not None or hero["resources"]["hp"]["current"] <= 0:
             raise SessionError("Cannot take a short rest now")
         dice = []
-        hit_dice = hero["resources"]["hit_dice_d10"]["current"]
+        hit_die = hero["derived"]["hit_die"]
+        hit_die_key = f"hit_dice_{hit_die}"
+        hit_dice = hero["resources"][hit_die_key]["current"]
         if spend_hit_die:
             if hit_dice < 1:
                 raise SessionError("No hit die remains")
             con = hero["derived"]["modifiers"]["con"]
-            expression = f"d10{con:+d}"
+            expression = f"{hit_die}{con:+d}"
             result = roll_dice(expression, purpose="short_rest_hit_die", roller=roller)
             dice.append(result)
             hit_dice -= 1
@@ -396,11 +434,11 @@ def short_rest(directory, operation_id: str, *, spend_hit_die=False, roller=None
         healed = max(0, dice[0]["total"]) if dice else 0
         after = min(hero["resources"]["hp"]["max"], before + healed)
         return {"dice": dice, "hp_before": before, "hp_after": after,
-                "hit_dice_after": hit_dice,
-                "public_view": {"summary": f"短休结束，生命值{after}，第二春已恢复。"}}
+                "hit_dice_after": hit_dice, "hit_die_key": hit_die_key,
+                "public_view": {"summary": f"短休结束，生命值{after}。"}}
 
     return transact(directory, operation_id, "rest.short_completed", resolve,
-                    rules=["adventuring.rest", "class.fighter"])
+                    rules=["adventuring.rest"])
 
 
 def long_rest(directory, operation_id: str):
@@ -415,17 +453,19 @@ def long_rest(directory, operation_id: str):
         if last_start is not None and started_at - last_start < 24 * 60:
             raise SessionError("A character cannot benefit from another long rest within 24 hours")
         resources = hero["resources"]
-        hit_dice = resources["hit_dice_d10"]
+        hit_die_key = f"hit_dice_{hero['derived']['hit_die']}"
+        hit_dice = resources[hit_die_key]
         restored_dice = max(1, hit_dice["max"] // 2)
         hit_dice_after = min(hit_dice["max"], hit_dice["current"] + restored_dice)
         hp_after = resources["hp"]["max"]
         return {"started_at": started_at, "completed_at": started_at + 8 * 60,
                 "hp_after": hp_after, "hit_dice_after": hit_dice_after,
+                "hit_die_key": hit_die_key,
                 "temp_hp_after": 0,
                 "public_view": {"summary": f"{hero['name']}完成长休，生命值恢复至{hp_after}，生命骰恢复至{hit_dice_after}颗。"}}
 
     return transact(directory, operation_id, "rest.long_completed", resolve,
-                    rules=["adventuring.rest", "class.fighter"])
+                    rules=["adventuring.rest"])
 
 
 def end_encounter(directory, operation_id: str):
@@ -496,7 +536,7 @@ def main(argv=None) -> int:
     parser.add_argument("directory")
     parser.add_argument("command", choices=("declare", "narrate", "check", "move", "start-combat",
                                             "attack", "combat-action", "combat-move", "advance", "death-save",
-                                            "second-wind", "short-rest", "long-rest", "end-combat", "recover-stable",
+                                            "second-wind", "rage", "short-rest", "long-rest", "end-combat", "recover-stable",
                                             "search-battlefield"))
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--text")
@@ -523,6 +563,7 @@ def main(argv=None) -> int:
                 "advance": lambda: advance_turn(args.directory, args.operation_id),
                 "death-save": lambda: death_save(args.directory, args.operation_id),
                 "second-wind": lambda: second_wind(args.directory, args.operation_id),
+                "rage": lambda: rage(args.directory, args.operation_id),
                 "short-rest": lambda: short_rest(args.directory, args.operation_id,
                                                   spend_hit_die=args.spend_hit_die),
                 "long-rest": lambda: long_rest(args.directory, args.operation_id),

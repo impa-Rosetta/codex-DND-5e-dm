@@ -20,7 +20,7 @@
     {"id":"tiefling","section":"Races > Tiefling","status":"indexed_only"}
   ],
   "classes": [
-    {"id":"barbarian","section":"Classes > Barbarian","status":"indexed_only"},
+      {"id":"barbarian","section":"Classes > Barbarian","status":"buildable"},
     {"id":"bard","section":"Classes > Bard","status":"indexed_only"},
     {"id":"cleric","section":"Classes > Cleric","status":"indexed_only"},
     {"id":"druid","section":"Classes > Druid","status":"indexed_only"},
