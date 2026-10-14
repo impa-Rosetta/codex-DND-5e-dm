@@ -1,0 +1,39 @@
+{
+  "schema_version": 1,
+  "ruleset": "srd-5.1-2014",
+  "source": "https://media.dndbeyond.com/compendium-images/srd/5.1/SRD_CC_v5.1.pdf",
+  "status": "indexed_only",
+  "note": "Names from the SRD 5.1 class spell lists. This is not spell mechanics or permission to build a spellcaster.",
+  "class_lists": {
+    "bard": {
+      "section": "Spell Lists > Bard Spells",
+      "cantrips": ["dancing_lights", "light", "mage_hand", "mending", "message", "minor_illusion", "prestidigitation", "true_strike", "vicious_mockery"],
+      "level1": ["animal_friendship", "bane", "charm_person", "comprehend_languages", "cure_wounds", "detect_magic", "disguise_self", "faerie_fire", "feather_fall", "healing_word", "heroism", "hideous_laughter", "identify", "illusory_script", "longstrider", "silent_image", "sleep", "speak_with_animals", "thunderwave", "unseen_servant"]
+    },
+    "cleric": {
+      "section": "Spell Lists > Cleric Spells",
+      "cantrips": ["guidance", "light", "mending", "resistance", "sacred_flame", "spare_the_dying", "thaumaturgy"],
+      "level1": ["bane", "bless", "command", "create_or_destroy_water", "cure_wounds", "detect_evil_and_good", "detect_magic", "detect_poison_and_disease", "guiding_bolt", "healing_word", "inflict_wounds", "protection_from_evil_and_good", "purify_food_and_drink", "sanctuary", "shield_of_faith"]
+    },
+    "druid": {
+      "section": "Spell Lists > Druid Spells",
+      "cantrips": ["druidcraft", "guidance", "mending", "poison_spray", "produce_flame", "resistance", "shillelagh"],
+      "level1": ["animal_friendship", "charm_person", "create_or_destroy_water", "cure_wounds", "detect_magic", "detect_poison_and_disease", "entangle", "faerie_fire", "fog_cloud", "goodberry", "healing_word", "jump", "longstrider", "purify_food_and_drink", "speak_with_animals", "thunderwave"]
+    },
+    "sorcerer": {
+      "section": "Spell Lists > Sorcerer Spells",
+      "cantrips": ["acid_splash", "chill_touch", "dancing_lights", "fire_bolt", "light", "mage_hand", "mending", "message", "minor_illusion", "poison_spray", "prestidigitation", "ray_of_frost", "shocking_grasp", "true_strike"],
+      "level1": ["burning_hands", "charm_person", "color_spray", "comprehend_languages", "detect_magic", "disguise_self", "expeditious_retreat", "false_life", "feather_fall", "fog_cloud", "jump", "mage_armor", "magic_missile", "shield", "silent_image", "sleep", "thunderwave"]
+    },
+    "warlock": {
+      "section": "Spell Lists > Warlock Spells",
+      "cantrips": ["chill_touch", "eldritch_blast", "mage_hand", "minor_illusion", "poison_spray", "prestidigitation", "true_strike"],
+      "level1": ["charm_person", "comprehend_languages", "expeditious_retreat", "hellish_rebuke", "illusory_script", "protection_from_evil_and_good", "unseen_servant"]
+    },
+    "wizard": {
+      "section": "Spell Lists > Wizard Spells",
+      "cantrips": ["acid_splash", "chill_touch", "dancing_lights", "fire_bolt", "light", "mage_hand", "mending", "message", "minor_illusion", "poison_spray", "prestidigitation", "ray_of_frost", "shocking_grasp", "true_strike"],
+      "level1": ["alarm", "burning_hands", "charm_person", "color_spray", "comprehend_languages", "detect_magic", "disguise_self", "expeditious_retreat", "false_life", "feather_fall", "find_familiar", "floating_disk", "fog_cloud", "grease", "hideous_laughter", "identify", "illusory_script", "jump", "longstrider", "mage_armor", "magic_missile", "protection_from_evil_and_good", "shield", "silent_image", "sleep", "thunderwave", "unseen_servant"]
+    }
+  }
+}

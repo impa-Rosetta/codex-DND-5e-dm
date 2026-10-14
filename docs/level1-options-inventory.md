@@ -11,7 +11,8 @@
 | 属性方式 | `standard_array`, `point_buy`, `rolled_4d6_drop_lowest` | 三种方式已有窄样例计算及审计 |
 | 龙裔祖先（10） | `black`, `blue`, `brass`, `bronze`, `copper`, `gold`, `green`, `red`, `silver`, `white` | 尚不可建；这里只冻结龙种选择，不代表吐息和抗性已实现 |
 | 战士战斗风格（6） | `archery`, `defense`, `dueling`, `great_weapon_fighting`, `protection`, `two_weapon_fighting` | 仅防御在固定装备样例中计入 AC |
+| 六种一级施法职业的戏法／一级法术列表 | 见 [`level1-spell-lists.json`](../skills/codex-5e-dm/data/level1-spell-lists.json) | 只建立了 SRD 名称与职业归属；法术效果、选择数量、法术位尚未实现 |
 
-尚未冻结为逐项清单：各职业一级技能／工具／特性选择、游侠宿敌／地形、术士龙脉祖先、全部一级起始装备分支、可选戏法及一级法术。这些都属于 M2 验收，不得用 `races.other`、`classes.other`、`magic.spells` 等聚合 ID 代替，也不得因为本页出现了名称便标记为 `buildable`。
+尚未冻结为逐项清单：各职业一级技能／工具／特性选择、游侠宿敌／地形、术士龙脉祖先、全部一级起始装备分支、种族给予的法术选择及逐个法术的机械效果。六个职业的法术列表虽已转录，尚未按法术项建立效果或允许建卡。这些都属于 M2 验收，不得用 `races.other`、`classes.other`、`magic.spells` 等聚合 ID 代替，也不得因为本页出现了名称便标记为 `buildable`。
 
 下一批对账按官方章节逐项列出以上分支，给每个合法选项稳定 ID、来源、数据项和针对性测试；缺少的 SRD 内容保持 `indexed_only` 或 `not_frozen`。非 SRD 官方书籍、种族、职业和背景不是内置选项。

@@ -55,7 +55,8 @@ class LevelOneInventoryTests(unittest.TestCase):
         indexed = {entry["id"] for entry in rules["rules"]}
         self.assertTrue(set(inventory["level1_subclass_ids"]) <= indexed)
         self.assertEqual(inventory["equipment_branches"]["status"], "not_frozen")
-        self.assertEqual(inventory["cantrips_and_level1_spells"]["status"], "not_frozen")
+        self.assertEqual(inventory["cantrips_and_level1_spells"]["status"], "partial_index")
+        self.assertEqual(inventory["cantrips_and_level1_spells"]["data_file"], "level1-spell-lists.json")
         self.assertEqual(inventory["other_level1_choices"]["status"], "not_frozen")
 
     def test_dragon_ancestry_and_fighter_styles_are_individual_choices(self):

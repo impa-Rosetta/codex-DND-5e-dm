@@ -21,7 +21,7 @@
   "dragonborn_ancestry_ids": ["black", "blue", "brass", "bronze", "copper", "gold", "green", "red", "silver", "white"],
   "fighter_style_ids": ["archery", "defense", "dueling", "great_weapon_fighting", "protection", "two_weapon_fighting"],
   "equipment_branches": {"status": "not_frozen", "section": "Classes > Equipment / Equipment"},
-  "cantrips_and_level1_spells": {"status": "not_frozen", "section": "Spell Lists"},
+  "cantrips_and_level1_spells": {"status": "partial_index", "section": "Spell Lists", "data_file": "level1-spell-lists.json", "missing": ["racial spell choices", "per-spell mechanics", "class-specific selection limits"]},
   "other_level1_choices": {"status": "not_frozen", "examples": [
     "ranger favored enemy and terrain", "sorcerer draconic ancestry",
     "warlock spells", "class skills and tools"
