@@ -54,6 +54,51 @@ class CampaignStateTests(unittest.TestCase):
             state.load(self.path)
         self.assertEqual((self.path / "state.json").read_bytes(), snapshot)
 
+    def test_corrupt_snapshot_recovers_from_verified_backup_and_log(self):
+        state.commit(self.path, str(uuid.uuid4()), "location.discovered",
+                     {"location_id": "forest", "public_view": {"summary": "Forest"}})
+        latest, _ = state.commit(self.path, str(uuid.uuid4()), "scene.narrated",
+                                 {"observation": "Footprints", "public_view": {"summary": "Footprints"}})
+        backup_before = (self.path / "state.json.bak").read_bytes()
+        (self.path / "state.json").write_bytes(b'{"incomplete":')
+        _, restored, events = state.load(self.path)
+        self.assertEqual(restored["revision"], 2)
+        self.assertEqual(restored["last_applied_event_id"], latest["event_id"])
+        self.assertIn("forest", restored["scene"]["discovered_locations"])
+        self.assertEqual(len(events), 2)
+        self.assertEqual((self.path / "state.json.bak").read_bytes(), backup_before)
+        self.assertEqual(state.load(self.path)[1], restored)
+
+    def test_corrupt_snapshot_with_invalid_backup_is_not_overwritten(self):
+        state.commit(self.path, str(uuid.uuid4()), "scene.narrated",
+                     {"observation": "One", "public_view": {"summary": "One"}})
+        broken = b'{"incomplete":'
+        (self.path / "state.json").write_bytes(broken)
+        (self.path / "state.json.bak").write_bytes(b'{"also":')
+        with self.assertRaises(state.StateError):
+            state.load(self.path)
+        self.assertEqual((self.path / "state.json").read_bytes(), broken)
+
+    def test_corrupt_snapshot_does_not_hide_broken_event_log(self):
+        state.commit(self.path, str(uuid.uuid4()), "scene.narrated",
+                     {"observation": "One", "public_view": {"summary": "One"}})
+        broken = b'{"incomplete":'
+        (self.path / "state.json").write_bytes(broken)
+        with (self.path / "events.jsonl").open("ab") as stream:
+            stream.write(b'{"truncated":')
+        with self.assertRaises(state.StateError):
+            state.load(self.path)
+        self.assertEqual((self.path / "state.json").read_bytes(), broken)
+
+    def test_valid_but_ahead_snapshot_never_falls_back_to_backup(self):
+        state.commit(self.path, str(uuid.uuid4()), "scene.narrated",
+                     {"observation": "One", "public_view": {"summary": "One"}})
+        snapshot = (self.path / "state.json").read_bytes()
+        (self.path / "events.jsonl").write_bytes(b"")
+        with self.assertRaises(state.StateError):
+            state.load(self.path)
+        self.assertEqual((self.path / "state.json").read_bytes(), snapshot)
+
     def test_public_projection_excludes_world_secret(self):
         manifest, snapshot, _ = state.load(self.path)
         snapshot["scene"]["secret_npc_plan"] = "ambush"

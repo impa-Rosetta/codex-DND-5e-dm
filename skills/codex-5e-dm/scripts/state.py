@@ -253,10 +253,18 @@ def _load_unlocked(path: Path) -> tuple[dict, dict, list[dict]]:
     manifest = _json(path / "manifest.json")
     if manifest.get("schema_version") != 1 or manifest.get("ruleset") != RULESET:
         raise StateError("Unsupported campaign schema or ruleset")
-    state = _json(path / "state.json")
+    events = _events(path / "events.jsonl", manifest["campaign_id"])
+    recovering_from_backup = False
+    try:
+        state = _json(path / "state.json")
+    except StateError as primary_error:
+        try:
+            state = _json(path / "state.json.bak")
+        except StateError as backup_error:
+            raise StateError(f"Snapshot unreadable and no usable backup: {backup_error}") from primary_error
+        recovering_from_backup = True
     if state.get("schema_version") != 1 or state.get("campaign_id") != manifest["campaign_id"]:
         raise StateError("Snapshot identity mismatch")
-    events = _events(path / "events.jsonl", manifest["campaign_id"])
     revision = state.get("revision")
     if isinstance(revision, bool) or not isinstance(revision, int) or revision < 0 or revision > len(events):
         raise StateError("Snapshot revision is invalid or ahead of log")
@@ -268,7 +276,9 @@ def _load_unlocked(path: Path) -> tuple[dict, dict, list[dict]]:
         previous = copy.deepcopy(state)
         for event in events[revision:]:
             state = apply_event(state, event)
-        _atomic(path / "state.json.bak", previous)
+        if not recovering_from_backup:
+            _atomic(path / "state.json.bak", previous)
+    if recovering_from_backup or revision < len(events):
         _atomic(path / "state.json", state)
     return manifest, state, events
 

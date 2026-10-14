@@ -1,6 +1,6 @@
 # 创建与加载战役
 
-脚本路径相对于此 Skill 根目录。使用 Python 3.10+。让玩家选择 Skill 安装目录以外的战役数据目录；不要覆盖非空目录。先执行 `python scripts/state.py create <战役目录> --name <名称>`，或 `python scripts/state.py load <战役目录>`。脚本输出 JSON；如规则版本或日志损坏，停止游玩并报告，不手改快照。
+脚本路径相对于此 Skill 根目录。使用 Python 3.10+。让玩家选择 Skill 安装目录以外的战役数据目录；不要覆盖非空目录。先执行 `python scripts/state.py create <战役目录> --name <名称>`，或 `python scripts/state.py load <战役目录>`。脚本输出 JSON；主快照 JSON 不可读取时会仅从经验证的备份和完整事件日志自动恢复。若规则版本、备份或日志损坏，停止游玩并报告，不手改快照。
 
 原创开局位于旧磨坊路口：磨坊主的女儿请求调查旅人失踪。不要把未发现的林中岔路提前显示成公开地图节点。可先在聊天中介绍人物与眼前事实，再询问玩家要做什么。`world.md` 是 DM 叙事笔记，不是生命值或骰子权威。
 
