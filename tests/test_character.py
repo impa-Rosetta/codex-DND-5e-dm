@@ -15,7 +15,8 @@ def hero():
             "base_abilities": {"str": 15, "dex": 14, "con": 13, "int": 12, "wis": 10, "cha": 8},
             "class_skills": ["athletics", "perception"],
             "background_languages": ["elvish", "dwarvish"],
-            "fighting_style": "defense", "armor": "chain_mail", "shield": True}
+            "fighting_style": "defense", "armor": "chain_mail", "shield": True,
+            "weapon": "longsword"}
 
 
 class CharacterTests(unittest.TestCase):
@@ -26,6 +27,7 @@ class CharacterTests(unittest.TestCase):
         self.assertEqual(result["derived"]["ac"], 19)
         self.assertEqual(result["derived"]["max_hp"], 12)
         self.assertEqual(result["resources"]["second_wind"]["current"], 1)
+        self.assertEqual(result["derived"]["attacks"][0]["attack_bonus"], 5)
 
     def test_all_base_classes_listed_but_not_falsely_buildable(self):
         value = character.options()

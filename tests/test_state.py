@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import tempfile
+import threading
 import unittest
 import uuid
 from pathlib import Path
@@ -90,6 +91,31 @@ class CampaignStateTests(unittest.TestCase):
         self.assertEqual(event["payload"]["groups"][0],
                          {"raw": [6, 1, 4, 5], "dropped_index": 1,
                           "kept": [6, 4, 5], "total": 15})
+
+    def test_concurrent_retry_rolls_only_once(self):
+        operation = str(uuid.uuid4())
+        calls = []
+        results = []
+        errors = []
+
+        def roller(_sides):
+            calls.append(1)
+            return 4
+
+        def task():
+            try:
+                results.append(state.roll_ability_scores(self.path, operation, roller=roller)[0])
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=task) for _ in range(2)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertFalse(errors, errors)
+        self.assertEqual(len(calls), 24)
+        self.assertEqual(results[0]["event_id"], results[1]["event_id"])
 
     def test_rolled_character_requires_campaign_event(self):
         candidate = hero()

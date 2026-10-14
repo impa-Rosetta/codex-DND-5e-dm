@@ -104,7 +104,7 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
         _err("invalid_choice", "$", "Input must be an object")
     allowed = {"schema_version", "ruleset", "name", "backstory", "race", "class", "background",
                "ability_method", "base_abilities", "class_skills", "background_languages",
-               "fighting_style", "armor", "shield", "roll_event_id", "rolled_assignment"}
+               "fighting_style", "armor", "shield", "weapon", "roll_event_id", "rolled_assignment"}
     extra = set(data) - allowed
     if extra:
         _err("invalid_choice", sorted(extra)[0], "Unknown mechanical field")
@@ -138,17 +138,14 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
     if style != "defense":
         _err("unsupported_option", "fighting_style", "This style's action rules are not implemented")
     armor = data.get("armor")
-    if armor not in ("chain_mail", "leather", "none"):
-        _err("invalid_choice", "armor", "Choose chain_mail, leather, or none")
+    if armor != "chain_mail":
+        _err("unsupported_option", "armor", "Only the chain-mail starter package is verified")
     shield = data.get("shield")
     if type(shield) is not bool:
         _err("missing_choice", "shield", "Specify whether shield is equipped")
-    if armor == "chain_mail":
-        ac = 16
-    elif armor == "leather":
-        ac = 11 + modifiers["dex"]
-    else:
-        ac = 10 + modifiers["dex"]
+    if data.get("weapon") != "longsword":
+        _err("unsupported_option", "weapon", "Only longsword plus shield starter package is verified")
+    ac = 16
     if shield:
         ac += 2
     if style == "defense" and armor != "none":
@@ -170,13 +167,31 @@ def build(data: dict, *, verified_roll: list[int] | None = None) -> dict:
                                "roll_event_id": data.get("roll_event_id"),
                                "rolled_assignment": data.get("rolled_assignment"),
                                "class_skills": class_skills, "background_languages": background_languages,
-                               "fighting_style": style, "armor": armor, "shield": shield},
+                               "fighting_style": style, "armor": armor, "shield": shield,
+                               "weapon": "longsword"},
+            "equipment": [{"id": "chain_mail", "quantity": 1},
+                          {"id": "shield", "quantity": 1},
+                          {"id": "longsword", "quantity": 1},
+                          {"id": "handaxe", "quantity": 2},
+                          {"id": "explorers_pack", "quantity": 1},
+                          {"id": "holy_symbol", "quantity": 1},
+                          {"id": "prayer_book", "quantity": 1},
+                          {"id": "incense", "quantity": 5},
+                          {"id": "vestments", "quantity": 1},
+                          {"id": "common_clothes", "quantity": 1},
+                          {"id": "gp", "quantity": 15}],
             "rule_ids": ["race.human", "class.fighter", "background.acolyte",
                          "character.ability_scores", "character.proficiency", "equipment.weapons_armor"],
             "derived": {"level": 1, "abilities": scores, "modifiers": modifiers,
                         "proficiency_bonus": 2, "saving_throws": saving_throws, "skills": skills,
                         "passive_perception": 10 + skills["perception"], "initiative": modifiers["dex"],
                         "ac": ac, "speed": speed, "max_hp": hp, "hit_die": "d10",
+                        "attacks": [
+                            {"id": "longsword", "name": "长剑", "attack_bonus": modifiers["str"] + 2,
+                             "damage_die": 8, "damage_bonus": modifiers["str"], "reach": 5},
+                            {"id": "handaxe", "name": "手斧", "attack_bonus": modifiers["str"] + 2,
+                             "damage_die": 6, "damage_bonus": modifiers["str"],
+                             "range_normal": 20, "range_long": 60}],
                         "languages": ["common", *background_languages]},
             "resources": {"hp": {"current": hp, "max": hp},
                           "temp_hp": {"current": 0, "max": None},

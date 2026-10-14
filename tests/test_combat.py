@@ -55,6 +55,14 @@ class CombatTests(unittest.TestCase):
         result = combat.make_initiative(units, roller=lambda _: next(values))
         self.assertEqual(result["combatants"][0]["combatant_id"], "b")
 
+    def test_tie_preserves_dm_selected_order_instead_of_dex_tiebreak(self):
+        units = [{"combatant_id": "hero", "initiative_bonus": 1},
+                 {"combatant_id": "goblin", "initiative_bonus": 3}]
+        values = iter([12, 10])
+        result = combat.make_initiative(units, roller=lambda _: next(values))
+        self.assertEqual([unit["combatant_id"] for unit in result["combatants"]],
+                         ["hero", "goblin"])
+
 
 if __name__ == "__main__":
     unittest.main()

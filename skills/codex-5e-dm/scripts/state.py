@@ -10,6 +10,7 @@ import os
 import sys
 import tempfile
 import uuid
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -48,6 +49,32 @@ def _atomic(path: Path, value: dict) -> None:
     finally:
         if os.path.exists(temp_name):
             os.unlink(temp_name)
+
+
+@contextmanager
+def _campaign_lock(path: Path):
+    """Serialize writers and recovery across processes on Windows and POSIX."""
+    with (path / ".campaign.lock").open("a+b") as lock_file:
+        lock_file.seek(0, os.SEEK_END)
+        if lock_file.tell() == 0:
+            lock_file.write(b"\0")
+            lock_file.flush()
+        lock_file.seek(0)
+        if os.name == "nt":
+            import msvcrt
+            msvcrt.locking(lock_file.fileno(), msvcrt.LK_LOCK, 1)
+            try:
+                yield
+            finally:
+                lock_file.seek(0)
+                msvcrt.locking(lock_file.fileno(), msvcrt.LK_UNLCK, 1)
+        else:
+            import fcntl
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def create(directory: str | Path, name: str) -> dict:
@@ -126,6 +153,14 @@ def apply_event(state: dict, event: dict) -> dict:
         result["combat"] = copy.deepcopy(payload["combat"])
     elif kind == "combat.ended":
         result["combat"] = None
+    elif kind == "check.resolved":
+        location_id = payload.get("discovered_location_id")
+        if payload.get("success") and location_id:
+            if location_id not in result["scene"]["discovered_locations"]:
+                result["scene"]["discovered_locations"].append(location_id)
+            connection = [result["scene"]["location_id"], location_id]
+            if connection not in result["scene"]["discovered_connections"]:
+                result["scene"]["discovered_connections"].append(connection)
     elif kind == "combat.attack_resolved":
         target = payload["target_combatant_id"]
         for combatant in result["combat"]["combatants"]:
@@ -144,7 +179,23 @@ def apply_event(state: dict, event: dict) -> dict:
         result["combat"]["round"] = payload["round"]
         result["combat"]["action_used"] = False
         result["combat"]["bonus_action_used"] = False
+        result["combat"]["reaction_used"] = False
         result["combat"]["movement_used"] = 0
+    elif kind == "fighter.second_wind_used":
+        character = result["character"]
+        character["resources"]["hp"]["current"] = payload["hp_after"]
+        character["resources"]["second_wind"]["current"] = 0
+        result["combat"]["bonus_action_used"] = True
+        for combatant in result["combat"]["combatants"]:
+            if combatant["combatant_id"] == character["id"]:
+                combatant["hp"] = payload["hp_after"]
+                break
+    elif kind == "rest.short_completed":
+        resources = result["character"]["resources"]
+        resources["hp"]["current"] = payload["hp_after"]
+        resources["second_wind"]["current"] = 1
+        resources["hit_dice_d10"]["current"] = payload["hit_dice_after"]
+        result["world_time"] = (result["world_time"] or 0) + 60
     elif kind == "position.changed":
         for combatant in result["combat"]["combatants"]:
             if combatant["combatant_id"] == payload["combatant_id"]:
@@ -156,7 +207,7 @@ def apply_event(state: dict, event: dict) -> dict:
     elif kind == "resource.changed":
         resource = result["character"]["resources"][payload["resource_id"]]
         resource["current"] = payload["after"]
-    elif kind in ("character.ability_scores_rolled", "dice.rolled", "check.resolved", "player.declared", "scene.narrated"):
+    elif kind in ("character.ability_scores_rolled", "dice.rolled", "player.declared", "scene.narrated"):
         pass
     else:
         raise StateError(f"Unsupported event type: {kind}")
@@ -170,8 +221,7 @@ def apply_event(state: dict, event: dict) -> dict:
     return result
 
 
-def load(directory: str | Path) -> tuple[dict, dict, list[dict]]:
-    path = Path(directory).resolve()
+def _load_unlocked(path: Path) -> tuple[dict, dict, list[dict]]:
     manifest = _json(path / "manifest.json")
     if manifest.get("schema_version") != 1 or manifest.get("ruleset") != RULESET:
         raise StateError("Unsupported campaign schema or ruleset")
@@ -187,37 +237,59 @@ def load(directory: str | Path) -> tuple[dict, dict, list[dict]]:
     if not revision and state.get("last_applied_event_id") is not None:
         raise StateError("Initial snapshot has an event ID")
     if revision < len(events):
+        previous = copy.deepcopy(state)
         for event in events[revision:]:
             state = apply_event(state, event)
+        _atomic(path / "state.json.bak", previous)
         _atomic(path / "state.json", state)
     return manifest, state, events
+
+
+def load(directory: str | Path) -> tuple[dict, dict, list[dict]]:
+    path = Path(directory).resolve()
+    with _campaign_lock(path):
+        return _load_unlocked(path)
+
+
+def transact(directory: str | Path, operation_id: str, kind: str, payload_factory, *,
+             rules: list[str] | None = None, actor_id: str | None = None,
+             visibility: str = "public", causation_event_id: str | None = None) -> tuple[dict, dict]:
+    """Resolve one operation after obtaining the campaign lock; retries do not reroll."""
+    uuid.UUID(operation_id)
+    path = Path(directory).resolve()
+    with _campaign_lock(path):
+        manifest, state, events = _load_unlocked(path)
+        for existing in events:
+            if existing["operation_id"] == operation_id:
+                if existing["type"] != kind:
+                    raise StateError("Operation ID belongs to a different event type")
+                return existing, state
+        payload = payload_factory(state, events)
+        if not isinstance(payload, dict):
+            raise StateError("Payload factory must return an object")
+        event = {"schema_version": 1, "campaign_id": manifest["campaign_id"],
+                 "seq": len(events) + 1, "event_id": str(uuid.uuid4()),
+                 "operation_id": operation_id, "timestamp": _utc(), "type": kind,
+                 "visibility": visibility,
+                 "actor_id": actor_id or (payload["character"]["id"] if kind == "character.created" else None),
+                 "causation_event_id": causation_event_id, "rules": rules or [], "payload": payload}
+        next_state = apply_event(state, event)
+        encoded = (json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
+        with (path / "events.jsonl").open("ab") as stream:
+            stream.write(encoded)
+            stream.flush()
+            os.fsync(stream.fileno())
+        _atomic(path / "state.json.bak", state)
+        _atomic(path / "state.json", next_state)
+        return event, next_state
 
 
 def commit(directory: str | Path, operation_id: str, kind: str, payload: dict, *,
            rules: list[str] | None = None, actor_id: str | None = None,
            visibility: str = "public", causation_event_id: str | None = None) -> tuple[dict, dict]:
-    uuid.UUID(operation_id)
-    path = Path(directory).resolve()
-    manifest, state, events = load(path)
-    for existing in events:
-        if existing["operation_id"] == operation_id:
-            if existing["type"] != kind:
-                raise StateError("Operation ID belongs to a different event type")
-            return existing, state
-    event = {"schema_version": 1, "campaign_id": manifest["campaign_id"],
-             "seq": len(events) + 1, "event_id": str(uuid.uuid4()),
-             "operation_id": operation_id, "timestamp": _utc(), "type": kind,
-             "visibility": visibility, "actor_id": actor_id,
-             "causation_event_id": causation_event_id, "rules": rules or [], "payload": payload}
-    next_state = apply_event(state, event)
-    encoded = (json.dumps(event, ensure_ascii=False, separators=(",", ":")) + "\n").encode("utf-8")
-    with (path / "events.jsonl").open("ab") as stream:
-        stream.write(encoded)
-        stream.flush()
-        os.fsync(stream.fileno())
-    _atomic(path / "state.json.bak", state)
-    _atomic(path / "state.json", next_state)
-    return event, next_state
+    return transact(directory, operation_id, kind, lambda _state, _events: payload,
+                    rules=rules, actor_id=actor_id, visibility=visibility,
+                    causation_event_id=causation_event_id)
 
 
 def public_snapshot(state: dict, manifest: dict) -> dict:
@@ -240,21 +312,18 @@ def public_snapshot(state: dict, manifest: dict) -> dict:
 
 def confirm_character(directory: str | Path, operation_id: str, choices: dict) -> tuple[dict, dict]:
     """Validate a candidate and commit it once; never trust a caller-computed card."""
-    _, snapshot, events = load(directory)
-    for event in events:
-        if event["operation_id"] == operation_id:
-            if event["type"] != "character.created":
-                raise StateError("Operation ID belongs to a different event type")
-            return event, snapshot
-    if snapshot["character"] is not None:
-        raise StateError("Campaign already has a character")
-    card = preview_character(directory, choices, loaded_events=events)
-    card["id"] = str(uuid.uuid4())
-    payload = {"character": card, "catalog_version": card["catalog_version"],
-               "source_choices": card["source_choices"],
-               "public_view": {"summary": f"{card['name']}加入冒险。"}}
-    return commit(directory, operation_id, "character.created", payload,
-                  rules=card["rule_ids"], actor_id=card["id"])
+    def construct(snapshot, events):
+        if snapshot["character"] is not None:
+            raise StateError("Campaign already has a character")
+        card = preview_character(directory, choices, loaded_events=events)
+        card["id"] = str(uuid.uuid4())
+        return {"character": card, "catalog_version": card["catalog_version"],
+                "source_choices": card["source_choices"],
+                "public_view": {"summary": f"{card['name']}加入冒险。"}}
+
+    return transact(directory, operation_id, "character.created", construct,
+                    rules=["race.human", "class.fighter", "background.acolyte",
+                           "character.ability_scores", "character.proficiency", "equipment.weapons_armor"])
 
 
 def _sibling_module(name: str):
@@ -265,27 +334,23 @@ def _sibling_module(name: str):
 
 
 def roll_ability_scores(directory: str | Path, operation_id: str, *, roller=None) -> tuple[dict, dict]:
-    _, snapshot, events = load(directory)
-    for event in events:
-        if event["operation_id"] == operation_id:
-            if event["type"] != "character.ability_scores_rolled":
-                raise StateError("Operation ID belongs to a different event type")
-            return event, snapshot
-    if snapshot["character"] is not None:
-        raise StateError("Character already created")
-    dice = _sibling_module("dice")
-    groups = []
-    for index in range(6):
-        result = dice.roll_dice("4d6", purpose=f"ability_score_{index + 1}", roller=roller)
-        raw = result["raw"]
-        dropped_index = raw.index(min(raw))
-        kept = [value for i, value in enumerate(raw) if i != dropped_index]
-        groups.append({"raw": raw, "dropped_index": dropped_index,
-                       "kept": kept, "total": sum(kept)})
-    return commit(directory, operation_id, "character.ability_scores_rolled",
-                  {"groups": groups, "public_view": {"summary": "完成六组属性掷骰。",
-                                                     "totals": [g["total"] for g in groups]}},
-                  rules=["character.ability_scores"])
+    def construct(snapshot, _events):
+        if snapshot["character"] is not None:
+            raise StateError("Character already created")
+        dice = _sibling_module("dice")
+        groups = []
+        for index in range(6):
+            result = dice.roll_dice("4d6", purpose=f"ability_score_{index + 1}", roller=roller)
+            raw = result["raw"]
+            dropped_index = raw.index(min(raw))
+            kept = [value for i, value in enumerate(raw) if i != dropped_index]
+            groups.append({"raw": raw, "dropped_index": dropped_index,
+                           "kept": kept, "total": sum(kept)})
+        return {"groups": groups, "public_view": {"summary": "完成六组属性掷骰。",
+                                                  "totals": [g["total"] for g in groups]}}
+
+    return transact(directory, operation_id, "character.ability_scores_rolled",
+                    construct, rules=["character.ability_scores"])
 
 
 def preview_character(directory: str | Path, choices: dict, *, loaded_events: list[dict] | None = None) -> dict:
@@ -308,8 +373,6 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("create"); p.add_argument("directory"); p.add_argument("--name", required=True)
     p = sub.add_parser("load"); p.add_argument("directory")
-    p = sub.add_parser("commit"); p.add_argument("directory"); p.add_argument("--operation-id", required=True)
-    p.add_argument("--type", required=True); p.add_argument("--payload", required=True)
     p = sub.add_parser("confirm-character"); p.add_argument("directory")
     p.add_argument("--operation-id", required=True); p.add_argument("--input", required=True)
     p = sub.add_parser("preview-character"); p.add_argument("directory"); p.add_argument("--input", required=True)
@@ -330,9 +393,7 @@ def main(argv: list[str] | None = None) -> int:
             event, state = roll_ability_scores(args.directory, args.operation_id)
             value = {"event": event, "state": state}
         else:
-            event, state = commit(args.directory, args.operation_id, args.type,
-                                  _json(Path(args.payload)))
-            value = {"event": event, "state": state}
+            raise StateError("Unsupported command")
     except (StateError, ValueError, KeyError, OSError) as exc:
         print(json.dumps({"error": {"code": "invalid_state", "message": str(exc)}}), file=sys.stderr)
         return 2

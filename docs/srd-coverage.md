@@ -16,19 +16,19 @@
 | `character.proficiency` | Character Advancement / Using Ability Scores | 是 | 已索引 | 一级 +2 与样例技能／豁免；部分实现 | 建卡测试通过 | M2：全部职业 |
 | `character.advancement` | Beyond 1st Level / Classes | 否 | 已索引 | 未结构化 | 未测试 | M3：升级、熟练加值与职业成长 |
 | `character.multiclassing` | Multiclassing | 否 | 已索引 | 未结构化 | 未测试 | M3 |
-| `check.ability` | Using Ability Scores | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
+| `check.ability` | Using Ability Scores | 是 | 已索引 | 固定察觉 DC 12、优势／劣势、无检定自然 1／20 特判；部分实现 | 场景测试通过 | M2：通用技能与不同难度 |
 | `check.saving_throw` | Using Ability Scores | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
-| `adventuring.exploration` | Adventuring | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
-| `adventuring.rest` | Adventuring → Resting | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
-| `combat.initiative_turn` | Combat → The Order of Combat | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
+| `adventuring.exploration` | Adventuring | 是 | 已索引 | 旧磨坊固定地点发现／移动；部分实现 | 场景测试通过 | M2：可扩展地点与探索动作 |
+| `adventuring.rest` | Adventuring → Resting | 是 | 已索引 | 一级战士短休与生命骰；部分实现 | 场景测试通过 | M2：长休及其他职业资源 |
+| `combat.initiative_turn` | Combat → The Order of Combat | 是 | 已索引 | 固定双人先攻、回合、行动与附赠动作；部分实现 | 战斗／场景测试通过 | M2：完整行动经济 |
 | `combat.attack_damage` | Combat → Making an Attack / Damage and Healing | 是 | 已索引 | 单次攻击、自然 1／20、临时 HP；部分实现 | 战斗测试通过 | M2：攻击距离、状态、完整行动经济 |
 | `combat.movement_position` | Combat → Movement and Position | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
 | `combat.conditions` | Conditions | 是，样例所需状态 | 已索引 | 未结构化 | 未测试 | M3：全部 SRD 状态 |
 | `combat.death_saves` | Combat → Dropping to 0 Hit Points | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
-| `equipment.weapons_armor` | Equipment | 是，全部一级起始选项 | 已索引 | 未结构化 | 未测试 | M3：其余 SRD 常用装备 |
+| `equipment.weapons_armor` | Equipment | 是，全部一级起始选项 | 已索引 | 战士固定合法起始包的链甲／盾牌／长剑／手斧；部分实现 | 建卡／战斗测试通过 | M2：全部一级起始装备；M3：其余装备 |
 | `magic.spellcasting` | Spellcasting | 是，一级施法 | 已索引 | 未结构化 | 未测试 | M2：一级施法；M3：更高等级与完整规则 |
 | `magic.spells` | Spells | 是，一级可选法术 | 已索引 | 未结构化 | 未测试 | M2：一级合法选项；M3：其余法术 |
-| `monsters.goblin` | Monsters → Goblin | 是 | 已索引 | 未结构化 | 未测试 | M2 |
+| `monsters.goblin` | Monsters → Goblin | 是 | 已索引 | 固定遭遇 AC／HP／弯刀／先攻；部分实现 | 场景测试通过 | M2：完整怪物能力与战术 |
 | `monsters.other` | Monsters | 否 | 已索引 | 未结构化 | 未测试 | M3：逐项覆盖 SRD 怪物 |
 | `items.magic` | Magic Items | 否 | 已索引 | 未结构化 | 未测试 | M3：逐项覆盖 SRD 魔法物品 |
 | `dm.environment` | Traps / Diseases / Poisons / Objects | 否 | 已索引 | 未结构化 | 未测试 | M3：冒险环境与物件规则 |

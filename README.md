@@ -4,7 +4,7 @@
 
 项目目前处于**M2 开发中，尚未达到完整可玩验收**。首版以 2014 年版 SRD 5.1 为规则基础，先完成单人游玩，再考虑由玩家创作、AI 审核的可选扩展包。项目不会复制参考项目的代码或界面。
 
-M1 已建立规则来源与覆盖范围、事件/存档契约。M2 当前已有独立掷骰器、有限建卡计算器、事件存档与恢复、部分攻击结算，以及只读本地面板。**完整 SRD 5.1 一级建卡和所有可建角色的一级游玩能力尚未实现**：目前只有普通人类战士＋侍僧路径可构建；其他种族／职业仅在目录中标为 `indexed_only`。施法、完整装备选择、移动／反应／死亡豁免、探索事件和端到端新会话验收仍待完成。项目的完整边界见 [M2 实际覆盖](docs/m2-status.md)。
+M1 已建立规则来源与覆盖范围、事件/存档契约。M2 当前已有独立掷骰器、有限建卡计算器、并发安全的事件存档与恢复、原创旧磨坊固定场景（检定、地图揭示、哥布林遭遇、第二春和短休），以及只读本地面板。**完整 SRD 5.1 一级建卡和所有可建角色的一级游玩能力尚未实现**：目前只有普通人类战士＋侍僧的固定装备路径可构建；其他种族／职业仅在目录中标为 `indexed_only`。施法、完整装备选择、移动／反应／死亡豁免和端到端新会话验收仍待完成。项目的完整边界见 [M2 实际覆盖](docs/m2-status.md)。
 
 ## 试用掷骰器
 
@@ -24,6 +24,7 @@ python -m unittest discover -s tests -v
 python skills/codex-5e-dm/scripts/character.py options
 python skills/codex-5e-dm/scripts/state.py create <独立战役目录> --name "旧磨坊的回声"
 python skills/codex-5e-dm/scripts/state.py load <独立战役目录>
+python skills/codex-5e-dm/scripts/session.py <独立战役目录> --help
 python skills/codex-5e-dm/display/server.py <独立战役目录> --port 8765
 ```
 
