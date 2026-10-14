@@ -103,6 +103,8 @@ def start_encounter(directory, operation_id: str, *, roller=None):
         hero = _hero(state)
         if state["combat"] is not None or state["scene"]["location_id"] != "forest_path":
             raise SessionError("Encounter unavailable here")
+        if hero["resources"]["hp"]["current"] <= 0 or hero.get("life_state") == "dead":
+            raise SessionError("Defeated character cannot start an encounter")
         goblin_id = str(uuid.uuid4())
         fight = make_initiative([
             {"combatant_id": hero["id"], "name": hero["name"],
@@ -114,6 +116,8 @@ def start_encounter(directory, operation_id: str, *, roller=None):
              "hp": GOBLIN["hp"], "temp_hp": 0, "ac": GOBLIN["ac"],
              "initiative_bonus": GOBLIN["initiative_bonus"],
              "speed": GOBLIN["speed"], "position": [1, 0]}], roller=roller)
+        fight["death_saves"] = None
+        fight["death_save_made"] = False
         return {"combat": fight,
                 "public_view": {"summary": "哥布林从灌木后现身，战斗开始。",
                                 "initiative": [{"id": unit["combatant_id"], "dice": unit["initiative_roll"]}
@@ -128,11 +132,19 @@ def advance_turn(directory, operation_id: str):
         combat = state["combat"]
         if combat is None:
             raise SessionError("No active combat")
+        current = combat["combatants"][combat["turn_index"]]
+        hero = _hero(state)
+        if current["combatant_id"] == hero["id"] and current["hp"] == 0:
+            death = combat.get("death_saves") or {}
+            if not (combat.get("death_save_made") or death.get("stable") or death.get("dead")):
+                raise SessionError("Resolve the required death save before ending this turn")
         next_index = (combat["turn_index"] + 1) % len(combat["combatants"])
         round_number = combat["round"] + (1 if next_index == 0 else 0)
         next_actor = combat["combatants"][next_index]
-        if next_actor["hp"] <= 0:
+        if next_actor["hp"] <= 0 and next_actor["combatant_id"] != hero["id"]:
             raise SessionError("Defeated combatant cannot take a turn; end encounter")
+        if next_actor["combatant_id"] == hero["id"] and (combat.get("death_saves") or {}).get("dead"):
+            raise SessionError("Character has died; end encounter")
         return {"turn_index": next_index, "round": round_number,
                 "public_view": {"summary": f"第{round_number}轮，轮到{next_actor['name']}。"}}
 
@@ -158,11 +170,57 @@ def attack(directory, operation_id: str, target_id: str, *, mode="normal", rolle
                            abs(actor["position"][1] - target["position"][1]))
         if distance > weapon["reach"]:
             raise SessionError("Target is outside weapon reach")
-        return resolve_attack(combat, actor["combatant_id"], target_id, weapon,
-                              mode=mode, roller=roller)
+        outcome = resolve_attack(combat, actor["combatant_id"], target_id, weapon,
+                                 mode=mode, roller=roller)
+        if target_id == hero["id"] and outcome["hp_after"] == 0 and outcome["hp_before"] > 0:
+            effective_damage = outcome["damage"] - (outcome["temp_hp_before"] - outcome["temp_hp_after"])
+            remaining = effective_damage - outcome["hp_before"]
+            dead = remaining >= hero["resources"]["hp"]["max"]
+            outcome["death_saves_after"] = {"successes": 0, "failures": 0,
+                                             "stable": False, "dead": dead}
+            outcome["public_view"]["summary"] += (" 角色遭受即死伤害。" if dead else " 角色失去意识。")
+        return outcome
 
     return transact(directory, operation_id, "combat.attack_resolved", resolve,
                     rules=["combat.attack_damage"])
+
+
+def death_save(directory, operation_id: str, *, roller=None):
+    def resolve(state, _events):
+        hero = _hero(state)
+        combat = state["combat"]
+        if combat is None or combat["combatants"][combat["turn_index"]]["combatant_id"] != hero["id"]:
+            raise SessionError("Death save requires the character's turn")
+        death = combat.get("death_saves")
+        if (hero["resources"]["hp"]["current"] != 0 or not death or
+                death["stable"] or death["dead"] or combat.get("death_save_made")):
+            raise SessionError("Death save is not required now")
+        dice = roll_dice("d20", purpose="death_save", roller=roller)
+        natural = dice["natural_d20"]
+        after = dict(death)
+        hp_after = 0
+        if natural == 20:
+            after = None
+            hp_after = 1
+            summary = f"{hero['name']}掷出自然20，恢复1点生命值。"
+        else:
+            if natural >= 10:
+                after["successes"] += 1
+            else:
+                after["failures"] += 2 if natural == 1 else 1
+            if after["successes"] >= 3:
+                after = {"successes": 0, "failures": 0, "stable": True, "dead": False}
+                summary = f"{hero['name']}伤势稳定，但仍处于0生命值。"
+            elif after["failures"] >= 3:
+                after["dead"] = True
+                summary = f"{hero['name']}死亡。"
+            else:
+                summary = f"{hero['name']}进行死亡豁免：成功{after['successes']}次，失败{after['failures']}次。"
+        return {"dice": [dice], "death_saves_after": after, "hp_after": hp_after,
+                "public_view": {"summary": summary, "natural_d20": natural}}
+
+    return transact(directory, operation_id, "combat.death_save_resolved", resolve,
+                    rules=["combat.death_saves"])
 
 
 def second_wind(directory, operation_id: str, *, roller=None):
@@ -217,10 +275,18 @@ def end_encounter(directory, operation_id: str):
         combat = state["combat"]
         if combat is None:
             raise SessionError("No active combat")
-        if not any(unit["name"] == GOBLIN["name"] and unit["hp"] == 0
-                   for unit in combat["combatants"]):
-            raise SessionError("Goblin is not defeated; player death saves are not yet implemented")
-        return {"public_view": {"summary": "遭遇结束。"}}
+        goblin_defeated = any(unit["name"] == GOBLIN["name"] and unit["hp"] == 0
+                              for unit in combat["combatants"])
+        death = combat.get("death_saves") or {}
+        if goblin_defeated:
+            outcome, summary = "victory", "哥布林倒下，遭遇结束。"
+        elif death.get("dead"):
+            outcome, summary = "defeat_dead", "角色死亡，冒险结束。"
+        elif death.get("stable"):
+            outcome, summary = "defeat_stable", "角色伤势稳定，但失去行动能力；本次遭遇以战败结束。"
+        else:
+            raise SessionError("No resolved victory or defeat")
+        return {"outcome": outcome, "public_view": {"summary": summary}}
 
     return transact(directory, operation_id, "combat.ended", resolve,
                     rules=["combat.initiative_turn"])
@@ -232,7 +298,7 @@ def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description="Audited old-mill session actions")
     parser.add_argument("directory")
     parser.add_argument("command", choices=("declare", "narrate", "check", "move", "start-combat",
-                                            "attack", "advance", "second-wind", "short-rest", "end-combat"))
+                                            "attack", "advance", "death-save", "second-wind", "short-rest", "end-combat"))
     parser.add_argument("--operation-id", required=True)
     parser.add_argument("--text")
     parser.add_argument("--challenge-id")
@@ -248,6 +314,7 @@ def main(argv=None) -> int:
                 "start-combat": lambda: start_encounter(args.directory, args.operation_id),
                 "attack": lambda: attack(args.directory, args.operation_id, args.target_id, mode=args.mode),
                 "advance": lambda: advance_turn(args.directory, args.operation_id),
+                "death-save": lambda: death_save(args.directory, args.operation_id),
                 "second-wind": lambda: second_wind(args.directory, args.operation_id),
                 "short-rest": lambda: short_rest(args.directory, args.operation_id,
                                                   spend_hit_die=args.spend_hit_die),

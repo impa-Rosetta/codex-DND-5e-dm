@@ -152,6 +152,10 @@ def apply_event(state: dict, event: dict) -> dict:
             raise StateError("Combat already active")
         result["combat"] = copy.deepcopy(payload["combat"])
     elif kind == "combat.ended":
+        if payload.get("outcome") == "defeat_dead":
+            result["character"]["life_state"] = "dead"
+        elif payload.get("outcome") == "defeat_stable":
+            result["character"]["life_state"] = "stable"
         result["combat"] = None
     elif kind == "check.resolved":
         location_id = payload.get("discovered_location_id")
@@ -170,6 +174,8 @@ def apply_event(state: dict, event: dict) -> dict:
                 if result["character"] and combatant["combatant_id"] == result["character"]["id"]:
                     result["character"]["resources"]["hp"]["current"] = payload["hp_after"]
                     result["character"]["resources"]["temp_hp"]["current"] = payload["temp_hp_after"]
+                    if "death_saves_after" in payload:
+                        result["combat"]["death_saves"] = copy.deepcopy(payload["death_saves_after"])
                 break
         else:
             raise StateError("Unknown target combatant")
@@ -181,6 +187,17 @@ def apply_event(state: dict, event: dict) -> dict:
         result["combat"]["bonus_action_used"] = False
         result["combat"]["reaction_used"] = False
         result["combat"]["movement_used"] = 0
+        result["combat"]["death_save_made"] = False
+    elif kind == "combat.death_save_resolved":
+        result["combat"]["death_saves"] = copy.deepcopy(payload["death_saves_after"])
+        result["combat"]["death_save_made"] = True
+        if payload["hp_after"] > 0:
+            character = result["character"]
+            character["resources"]["hp"]["current"] = payload["hp_after"]
+            for combatant in result["combat"]["combatants"]:
+                if combatant["combatant_id"] == character["id"]:
+                    combatant["hp"] = payload["hp_after"]
+                    break
     elif kind == "fighter.second_wind_used":
         character = result["character"]
         character["resources"]["hp"]["current"] = payload["hp_after"]
@@ -300,6 +317,7 @@ def public_snapshot(state: dict, manifest: dict) -> dict:
     combat = state["combat"]
     if combat is not None:
         combat = {"round": combat["round"], "turn_index": combat["turn_index"],
+                  "death_saves": combat.get("death_saves"),
                   "combatants": [{key: unit.get(key) for key in
                                    ("combatant_id", "name", "hp", "temp_hp", "ac", "position")}
                                   for unit in combat["combatants"]]}

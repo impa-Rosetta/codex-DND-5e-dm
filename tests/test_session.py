@@ -116,6 +116,83 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(snapshot["character"]["resources"]["hit_dice_d10"]["current"], 0)
         self.assertEqual(snapshot["character"]["resources"]["second_wind"]["current"], 1)
 
+    def _knock_hero_unconscious(self):
+        self._reach_forest()
+        values = iter([1, 20])
+        session.start_encounter(self.path, operation(), roller=lambda _: next(values))
+        hit = iter([20, 6, 6])
+        _, snapshot = session.attack(self.path, operation(), self.hero_id,
+                                     roller=lambda _: next(hit))
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 0)
+        return session.advance_turn(self.path, operation())[1]
+
+    def test_death_save_one_counts_two_failures_and_third_failure_ends_run(self):
+        snapshot = self._knock_hero_unconscious()
+        self.assertEqual(snapshot["combat"]["combatants"][snapshot["combat"]["turn_index"]]
+                         ["combatant_id"], self.hero_id)
+        save_op = operation()
+        saved, snapshot = session.death_save(self.path, save_op, roller=lambda _: 1)
+        self.assertEqual(snapshot["combat"]["death_saves"]["failures"], 2)
+        public = state.public_snapshot(snapshot, state.load(self.path)[0])
+        self.assertEqual(public["combat"]["death_saves"]["failures"], 2)
+        repeated, _ = session.death_save(self.path, save_op,
+                                         roller=lambda _: self.fail("rerolled"))
+        self.assertEqual(repeated["event_id"], saved["event_id"])
+        with self.assertRaises(session.SessionError):
+            session.death_save(self.path, operation(), roller=lambda _: 10)
+        session.advance_turn(self.path, operation())
+        session.advance_turn(self.path, operation())
+        _, snapshot = session.death_save(self.path, operation(), roller=lambda _: 9)
+        self.assertTrue(snapshot["combat"]["death_saves"]["dead"])
+        ended, snapshot = session.end_encounter(self.path, operation())
+        self.assertEqual(ended["payload"]["outcome"], "defeat_dead")
+        self.assertEqual(snapshot["character"]["life_state"], "dead")
+        self.assertEqual(state.load(self.path)[1]["character"]["life_state"], "dead")
+
+    def test_natural_twenty_death_save_revives_at_one_hp(self):
+        self._knock_hero_unconscious()
+        _, snapshot = session.death_save(self.path, operation(), roller=lambda _: 20)
+        self.assertEqual(snapshot["character"]["resources"]["hp"]["current"], 1)
+        self.assertIsNone(snapshot["combat"]["death_saves"])
+
+    def test_cannot_skip_required_death_save(self):
+        self._knock_hero_unconscious()
+        with self.assertRaises(session.SessionError):
+            session.advance_turn(self.path, operation())
+
+    def test_massive_damage_causes_instant_death(self):
+        self._reach_forest()
+        initiative = iter([1, 20])
+        session.start_encounter(self.path, operation(), roller=lambda _: next(initiative))
+        first = iter([20, 2, 2])
+        session.attack(self.path, operation(), self.hero_id,
+                       roller=lambda _: next(first))
+        session.advance_turn(self.path, operation())
+        session.advance_turn(self.path, operation())
+        second = iter([15, 3])
+        session.attack(self.path, operation(), self.hero_id,
+                       roller=lambda _: next(second))
+        session.advance_turn(self.path, operation())
+        session.advance_turn(self.path, operation())
+        final = iter([20, 6, 6])
+        _, snapshot = session.attack(self.path, operation(), self.hero_id,
+                                     roller=lambda _: next(final))
+        self.assertTrue(snapshot["combat"]["death_saves"]["dead"])
+        _, snapshot = session.end_encounter(self.path, operation())
+        self.assertEqual(snapshot["character"]["life_state"], "dead")
+
+    def test_three_successes_stabilize_and_allow_defeat_exit(self):
+        self._knock_hero_unconscious()
+        for index in range(3):
+            if index:
+                session.advance_turn(self.path, operation())
+                session.advance_turn(self.path, operation())
+            _, snapshot = session.death_save(self.path, operation(), roller=lambda _: 10)
+        self.assertTrue(snapshot["combat"]["death_saves"]["stable"])
+        self.assertEqual(snapshot["combat"]["death_saves"]["successes"], 0)
+        _, snapshot = session.end_encounter(self.path, operation())
+        self.assertEqual(snapshot["character"]["life_state"], "stable")
+
 
 if __name__ == "__main__":
     unittest.main()

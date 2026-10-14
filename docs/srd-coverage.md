@@ -24,7 +24,7 @@
 | `combat.attack_damage` | Combat → Making an Attack / Damage and Healing | 是 | 已索引 | 单次攻击、自然 1／20、临时 HP；部分实现 | 战斗测试通过 | M2：攻击距离、状态、完整行动经济 |
 | `combat.movement_position` | Combat → Movement and Position | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
 | `combat.conditions` | Conditions | 是，样例所需状态 | 已索引 | 未结构化 | 未测试 | M3：全部 SRD 状态 |
-| `combat.death_saves` | Combat → Dropping to 0 Hit Points | 是 | 已索引 | 未结构化 | 未测试 | M2 基础，M3 完整 |
+| `combat.death_saves` | Combat → Dropping to 0 Hit Points | 是 | 已索引 | 固定遭遇的即死判定、死亡豁免与胜负退出；部分实现 | 场景测试通过 | M2：0 HP 后续伤害、急救／治疗及稳定后苏醒 |
 | `equipment.weapons_armor` | Equipment | 是，全部一级起始选项 | 已索引 | 战士固定合法起始包的链甲／盾牌／长剑／手斧；部分实现 | 建卡／战斗测试通过 | M2：全部一级起始装备；M3：其余装备 |
 | `magic.spellcasting` | Spellcasting | 是，一级施法 | 已索引 | 未结构化 | 未测试 | M2：一级施法；M3：更高等级与完整规则 |
 | `magic.spells` | Spells | 是，一级可选法术 | 已索引 | 未结构化 | 未测试 | M2：一级合法选项；M3：其余法术 |
