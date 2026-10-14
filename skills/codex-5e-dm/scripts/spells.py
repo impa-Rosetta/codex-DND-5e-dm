@@ -46,3 +46,22 @@ def resolve_save_spell(spell_id: str, caster: dict, target: dict, save_bonus: in
             "public_view": {"summary": f"{spell_id}：{target['name']}豁免{'成功' if saved else '失败'}，受到{amount}点伤害。",
                             "save_total": save["total"], "save_dc": dc,
                             "damage": amount, "target_hp": hp_after}}
+
+
+def resolve_magic_missile(caster: dict, target: dict, *, roller=None) -> dict:
+    """All three first-level darts hit the one fixed-encounter target simultaneously."""
+    darts = [roll_dice("d4+1", purpose=f"magic_missile_dart_{index}", roller=roller)
+             for index in range(1, 4)]
+    amount = sum(dart["total"] for dart in darts)
+    temp_before = target.get("temp_hp", 0)
+    absorbed = min(temp_before, amount)
+    hp_before = target["hp"]
+    hp_after = max(0, hp_before - (amount - absorbed))
+    return {"actor_combatant_id": caster["id"], "target_combatant_id": target["combatant_id"],
+            "target_ac": target["ac"], "weapon_name": "magic_missile", "spell_id": "magic_missile",
+            "hit": True, "critical": False, "dice": darts, "damage_type": "force",
+            "rolled_damage": amount, "damage": amount, "hp_before": hp_before,
+            "hp_after": hp_after, "temp_hp_before": temp_before,
+            "temp_hp_after": temp_before - absorbed,
+            "public_view": {"summary": f"魔法飞弹三枚命中{target['name']}，造成{amount}点力场伤害。",
+                            "damage": amount, "target_hp": hp_after}}

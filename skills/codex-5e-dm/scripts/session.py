@@ -14,7 +14,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from combat import CombatError, make_initiative, resolve_attack
 from dice import roll_dice
-from spells import SpellError, resolve_save_spell
+from spells import SpellError, resolve_magic_missile, resolve_save_spell
 from state import StateError, transact
 
 
@@ -545,8 +545,9 @@ def cast_spell(directory, operation_id: str, spell_id: str, target_id: str | Non
                *, mode="normal", roller=None):
     def resolve(state, _events):
         hero = _hero(state)
-        if hero["source_choices"]["class"] != "warlock":
-            raise SessionError("This fixed spellcasting route requires a warlock")
+        caster_class = hero["source_choices"]["class"]
+        if caster_class not in ("warlock", "sorcerer"):
+            raise SessionError("This fixed spellcasting route requires a warlock or sorcerer")
         if hero["resources"]["hp"]["current"] <= 0:
             raise SessionError("Unconscious character cannot cast")
         spellcasting = hero["derived"]["spellcasting"]
@@ -554,20 +555,24 @@ def cast_spell(directory, operation_id: str, spell_id: str, target_id: str | Non
         if spell_id not in known:
             raise SessionError("Spell is not known")
         leveled = spell_id in spellcasting["known_level1"]
-        slots = hero["resources"]["pact_slot_1"]
+        slot_key = "pact_slot_1" if caster_class == "warlock" else "spell_slots_1"
+        slots = hero["resources"][slot_key]
         if leveled and slots["current"] < 1:
-            raise SessionError("No Pact Magic slot remains")
+            raise SessionError("No first-level spell slot remains")
         combat = state["combat"]
         if combat is not None:
             if (combat["combatants"][combat["turn_index"]]["combatant_id"] != hero["id"] or
                     combat["action_used"]):
                 raise SessionError("Spell requires an available action on your turn")
-        if spell_id == "comprehend_languages":
+        if spell_id in ("comprehend_languages", "light", "mage_hand"):
             if target_id is not None:
-                raise SessionError("Comprehend Languages targets self")
-            return {"spell_id": spell_id, "pact_slot_after": slots["current"] - 1,
-                    "expires_at": (state["world_time"] or 0) + 60,
-                    "public_view": {"summary": f"{hero['name']}施展通晓语言，持续一小时。"}}
+                raise SessionError("This fixed utility spell route has no combatant target")
+            duration = 1 if spell_id == "mage_hand" else 60
+            payload = {"spell_id": spell_id, "expires_at": (state["world_time"] or 0) + duration,
+                       "public_view": {"summary": f"{hero['name']}施展{spell_id}。"}}
+            if leveled:
+                payload.update(spell_slot_key=slot_key, spell_slot_after=slots["current"] - 1)
+            return payload
         if combat is None:
             raise SessionError("This spell requires an active encounter target")
         actor = combat["combatants"][combat["turn_index"]]
@@ -576,28 +581,36 @@ def cast_spell(directory, operation_id: str, spell_id: str, target_id: str | Non
             raise SessionError("Invalid spell target")
         distance = 5 * max(abs(actor["position"][0] - target["position"][0]),
                            abs(actor["position"][1] - target["position"][1]))
-        ranges = {"eldritch_blast": 120, "poison_spray": 10, "burning_hands": 15}
+        ranges = {"eldritch_blast": 120, "fire_bolt": 120, "poison_spray": 10,
+                  "burning_hands": 15, "magic_missile": 120}
         if distance > ranges[spell_id]:
             raise SessionError("Target outside spell range")
-        if spell_id == "eldritch_blast":
-            weapon = {"id": spell_id, "name": "魔能爆", "attack_bonus": spellcasting["attack_bonus"],
-                      "damage_die": 10, "damage_bonus": 0, "damage_type": "force"}
+        if spell_id in ("eldritch_blast", "fire_bolt"):
+            damage_type = "force" if spell_id == "eldritch_blast" else "fire"
+            weapon = {"id": spell_id, "name": spell_id, "attack_bonus": spellcasting["attack_bonus"],
+                      "damage_die": 10, "damage_bonus": 0, "damage_type": damage_type}
             outcome = resolve_attack(combat, hero["id"], target_id, weapon,
                                      mode=mode, roller=roller, extra_disadvantage=distance <= 5)
             outcome["spell_id"] = spell_id
-            outcome["damage_type"] = "force"
+            outcome["damage_type"] = damage_type
+        elif spell_id == "magic_missile":
+            if mode != "normal":
+                raise SessionError("Magic Missile does not use an attack roll")
+            outcome = resolve_magic_missile(hero, target, roller=roller)
         else:
             if mode != "normal":
                 raise SessionError("Attack-roll advantage mode does not apply to a target saving throw")
             save_bonus = GOBLIN["saves"]["con" if spell_id == "poison_spray" else "dex"]
             outcome = resolve_save_spell(spell_id, hero, target, save_bonus, roller=roller)
         if leveled:
-            outcome["pact_slot_after"] = slots["current"] - 1
+            outcome["spell_slot_key"] = slot_key
+            outcome["spell_slot_after"] = slots["current"] - 1
         return outcome
 
-    kind = "spell.utility_cast" if spell_id == "comprehend_languages" else "combat.spell_resolved"
+    kind = "spell.utility_cast" if spell_id in ("comprehend_languages", "light", "mage_hand") else "combat.spell_resolved"
     return transact(directory, operation_id, kind, resolve,
-                    rules=["class.warlock.pact_magic", f"spell.{spell_id}"])
+                    rules=lambda state, _payload: [f"class.{state['character']['source_choices']['class']}",
+                                                   f"spell.{spell_id}"])
 
 
 def short_rest(directory, operation_id: str, *, spend_hit_die=False, roller=None):

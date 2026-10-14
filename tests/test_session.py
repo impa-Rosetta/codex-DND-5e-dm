@@ -820,6 +820,45 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(snapshot["character"]["resources"]["temp_hp"]["current"], 4)
         self.assertEqual(state.load(path)[1]["revision"], snapshot["revision"])
 
+    def test_red_dragon_sorcerer_spells_long_rest_only(self):
+        path = Path(self.temp.name) / "sorcerer"
+        state.create(path, "术士")
+        choices = hero()
+        choices.update(**{"class": "sorcerer", "class_skills": ["arcana", "deception"],
+                          "sorcerous_origin": "draconic_bloodline", "dragon_ancestor": "red",
+                          "cantrips": ["fire_bolt", "poison_spray", "light", "mage_hand"],
+                          "spells_known": ["burning_hands", "magic_missile"],
+                          "armor": "none", "shield": False, "weapon": "dagger"})
+        del choices["fighting_style"]
+        choices["base_abilities"]["str"], choices["base_abilities"]["cha"] = 8, 15
+        state.confirm_character(path, operation(), choices)
+        _, snapshot = session.cast_spell(path, operation(), "light")
+        session.cast_spell(path, operation(), "mage_hand")
+        self.assertEqual(snapshot["character"]["resources"]["spell_slots_1"]["current"], 2)
+        session.check(path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(path, operation(), "forest_path")
+        initiative = iter([20, 1])
+        _, snapshot = session.start_encounter(path, operation(), roller=lambda _: next(initiative))
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != snapshot["character"]["id"])
+        darts = iter([1, 1, 1])
+        missile, snapshot = session.cast_spell(path, operation(), "magic_missile", goblin_id,
+                                               roller=lambda _: next(darts))
+        self.assertEqual(missile["payload"]["damage"], 6)
+        self.assertEqual(snapshot["character"]["resources"]["spell_slots_1"]["current"], 1)
+        session.advance_turn(path, operation())
+        session.advance_turn(path, operation())
+        bolt_rolls = iter([15, 15, 1])
+        _, snapshot = session.cast_spell(path, operation(), "fire_bolt", goblin_id,
+                                         roller=lambda _: next(bolt_rolls))
+        self.assertEqual(snapshot["combat"]["combatants"][1]["hp"], 0)
+        self.assertEqual(snapshot["character"]["resources"]["temp_hp"]["current"], 0)
+        session.end_encounter(path, operation())
+        _, snapshot = session.short_rest(path, operation())
+        self.assertEqual(snapshot["character"]["resources"]["spell_slots_1"]["current"], 1)
+        _, snapshot = session.long_rest(path, operation())
+        self.assertEqual(snapshot["character"]["resources"]["spell_slots_1"]["current"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()

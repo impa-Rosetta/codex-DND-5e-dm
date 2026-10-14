@@ -29,7 +29,7 @@
       {"id":"paladin","section":"Classes > Paladin","status":"buildable"},
       {"id":"ranger","section":"Classes > Ranger","status":"buildable"},
       {"id":"rogue","section":"Classes > Rogue","status":"buildable"},
-    {"id":"sorcerer","section":"Classes > Sorcerer","status":"indexed_only"},
+      {"id":"sorcerer","section":"Classes > Sorcerer","status":"buildable"},
       {"id":"warlock","section":"Classes > Warlock","status":"buildable"},
     {"id":"wizard","section":"Classes > Wizard","status":"indexed_only"}
   ],

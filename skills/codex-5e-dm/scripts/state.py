@@ -200,6 +200,11 @@ def apply_event(state: dict, event: dict) -> dict:
             if connection not in result["scene"]["discovered_connections"]:
                 result["scene"]["discovered_connections"].append(connection)
     elif kind in ("combat.attack_resolved", "combat.spell_resolved"):
+        if "spell_slot_key" in payload:
+            slots = result["character"]["resources"].get(payload["spell_slot_key"])
+            if slots is None or payload["spell_slot_after"] != slots["current"] - 1:
+                raise StateError("Invalid spell slot expenditure")
+            slots["current"] = payload["spell_slot_after"]
         if "pact_slot_after" in payload:
             slots = result["character"]["resources"].get("pact_slot_1")
             if slots is None or payload["pact_slot_after"] != slots["current"] - 1:
@@ -360,10 +365,16 @@ def apply_event(state: dict, event: dict) -> dict:
                     break
     elif kind == "spell.utility_cast":
         character = result["character"]
-        slots = character["resources"].get("pact_slot_1")
-        if slots is None or payload["pact_slot_after"] != slots["current"] - 1:
-            raise StateError("Invalid Pact Magic slot expenditure")
-        slots["current"] = payload["pact_slot_after"]
+        if "spell_slot_key" in payload:
+            slots = character["resources"].get(payload["spell_slot_key"])
+            if slots is None or payload["spell_slot_after"] != slots["current"] - 1:
+                raise StateError("Invalid spell slot expenditure")
+            slots["current"] = payload["spell_slot_after"]
+        elif "pact_slot_after" in payload:
+            slots = character["resources"].get("pact_slot_1")
+            if slots is None or payload["pact_slot_after"] != slots["current"] - 1:
+                raise StateError("Invalid Pact Magic slot expenditure")
+            slots["current"] = payload["pact_slot_after"]
         character.setdefault("active_effects", {})[payload["spell_id"]] = payload["expires_at"]
         if result["combat"] is not None:
             result["combat"]["action_used"] = True
@@ -394,6 +405,8 @@ def apply_event(state: dict, event: dict) -> dict:
                 resources[paladin_resource]["current"] = resources[paladin_resource]["max"]
         if "pact_slot_1" in resources:
             resources["pact_slot_1"]["current"] = resources["pact_slot_1"]["max"]
+        if "spell_slots_1" in resources:
+            resources["spell_slots_1"]["current"] = resources["spell_slots_1"]["max"]
         resources[payload.get("hit_die_key", "hit_dice_d10")]["current"] = payload["hit_dice_after"]
         result["world_time"] = payload["completed_at"]
         result["character"]["active_effects"] = {

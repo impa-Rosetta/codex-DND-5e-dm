@@ -42,6 +42,14 @@ class SpellTests(unittest.TestCase):
         self.assertEqual(outcome["damage"], 4)
         self.assertEqual(outcome["hp_after"], 3)
 
+    def test_magic_missile_three_audited_darts(self):
+        rolls = iter([1, 2, 3])
+        outcome = spells.resolve_magic_missile(self.caster, self.target,
+                                               roller=lambda _: next(rolls))
+        self.assertEqual([die["raw"] for die in outcome["dice"]], [[1], [2], [3]])
+        self.assertEqual(outcome["damage"], 9)
+        self.assertEqual(outcome["hp_after"], 0)
+
 
 if __name__ == "__main__":
     unittest.main()
