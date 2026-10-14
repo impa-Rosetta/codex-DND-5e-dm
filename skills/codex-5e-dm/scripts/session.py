@@ -199,7 +199,11 @@ def attack(directory, operation_id: str, target_id: str, *, mode="normal", rolle
                                  damage_resistance=(combat.get("rage_active", False) and
                                                     target_id == hero["id"] and
                                                     weapon.get("damage_type") in
-                                                    ("bludgeoning", "piercing", "slashing")))
+                                                    ("bludgeoning", "piercing", "slashing")),
+                                 sneak_attack_on_advantage=(actor["combatant_id"] == hero["id"] and
+                                                            hero["source_choices"]["class"] == "rogue" and
+                                                            weapon.get("finesse", False) and
+                                                            not combat.get("sneak_attack_used", False)))
         if ammunition_after is not None:
             outcome["ammunition_arrow_after"] = ammunition_after
         if target_id == hero["id"] and outcome["hp_after"] == 0 and outcome["hp_before"] > 0:
@@ -308,7 +312,11 @@ def move_combat(directory, operation_id: str, path: list, *, use_reaction: bool 
                                                  damage_resistance=(actor["combatant_id"] == hero["id"] and
                                                                     combat.get("rage_active", False) and
                                                                     weapon.get("damage_type") in
-                                                                    ("bludgeoning", "piercing", "slashing")))
+                                                                    ("bludgeoning", "piercing", "slashing")),
+                                                 sneak_attack_on_advantage=(enemy["combatant_id"] == hero["id"] and
+                                                                            hero["source_choices"]["class"] == "rogue" and
+                                                                            weapon.get("finesse", False) and
+                                                                            not combat.get("sneak_attack_used", False)))
                 if opportunity is not None and opportunity["hp_after"] == 0:
                     remaining = (opportunity["damage"] -
                                  (opportunity["temp_hp_before"] - opportunity["temp_hp_after"]) -

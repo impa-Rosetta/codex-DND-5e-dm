@@ -652,6 +652,34 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(snapshot["character"]["resources"]["hit_dice_d12"]["current"], 1)
         self.assertEqual(snapshot["character"]["resources"]["rage"]["current"], 2)
 
+    def test_rogue_sneak_attack_uses_advantage_and_audited_extra_die(self):
+        path = Path(self.temp.name) / "rogue"
+        state.create(path, "游荡者")
+        choices = hero()
+        choices.update(**{"class": "rogue", "class_skills": ["acrobatics", "athletics", "perception", "stealth"],
+                          "expertise": ["perception", "stealth"], "armor": "leather_armor",
+                          "shield": False, "weapon": "rapier"})
+        del choices["fighting_style"]
+        created, snapshot = state.confirm_character(path, operation(), choices)
+        self.assertIn("class.rogue.sneak_attack", created["rules"])
+        session.check(path, operation(), "find_forest_path", roller=lambda _: 15)
+        session.move_scene(path, operation(), "forest_path")
+        initiative = iter([20, 1])
+        _, snapshot = session.start_encounter(path, operation(), roller=lambda _: next(initiative))
+        goblin_id = next(unit["combatant_id"] for unit in snapshot["combat"]["combatants"]
+                         if unit["combatant_id"] != snapshot["character"]["id"])
+        rolls = iter([10, 15, 2, 3])
+        event, snapshot = session.attack(path, operation(), goblin_id, mode="advantage",
+                                         roller=lambda _: next(rolls))
+        self.assertEqual(event["payload"]["damage"], 7)
+        self.assertTrue(event["payload"]["sneak_attack_used"])
+        self.assertEqual(event["payload"]["dice"][-1]["purpose"], "sneak_attack")
+        self.assertEqual(snapshot["combat"]["combatants"][1]["hp"], 0)
+        session.end_encounter(path, operation())
+        _, snapshot = session.short_rest(path, operation(), spend_hit_die=True, roller=lambda _: 5)
+        self.assertEqual(snapshot["character"]["resources"]["hit_dice_d8"]["current"], 0)
+        self.assertEqual(state.load(path)[1]["revision"], snapshot["revision"])
+
 
 if __name__ == "__main__":
     unittest.main()

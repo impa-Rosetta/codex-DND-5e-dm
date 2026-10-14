@@ -51,7 +51,8 @@ def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
                    *, mode: str = "normal", roller=None, reaction: bool = False,
                    target_unconscious: bool = False,
                    extra_disadvantage: bool = False,
-                   damage_resistance: bool = False) -> dict:
+                   damage_resistance: bool = False,
+                   sneak_attack_on_advantage: bool = False) -> dict:
     if not combat or not combat.get("combatants"):
         raise CombatError("No active combat")
     current = combat["combatants"][combat["turn_index"]]
@@ -87,12 +88,15 @@ def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
     hit = natural == 20 or (natural != 1 and attack["total"] >= target["ac"])
     critical = hit and (natural == 20 or target_unconscious)
     damage = None
+    sneak_damage = None
     amount = 0
     rolled_damage = 0
     if hit:
         damage = roll_dice(f"{2 if critical else 1}d{die}{damage_bonus:+d}",
                            purpose="damage", roller=roller)
-        rolled_damage = max(0, damage["total"])
+        if sneak_attack_on_advantage and mode == "advantage":
+            sneak_damage = roll_dice(f"{2 if critical else 1}d6", purpose="sneak_attack", roller=roller)
+        rolled_damage = max(0, damage["total"] + (sneak_damage["total"] if sneak_damage else 0))
         amount = rolled_damage // 2 if damage_resistance else rolled_damage
     temp_before = target.get("temp_hp", 0)
     absorbed = min(temp_before, amount)
@@ -100,7 +104,9 @@ def resolve_attack(combat: dict, actor_id: str, target_id: str, weapon: dict,
     hp_after = max(0, hp_before - (amount - absorbed))
     return {"actor_combatant_id": actor_id, "target_combatant_id": target_id,
             "target_ac": target["ac"], "weapon_name": weapon.get("name", "weapon"),
-            "hit": hit, "critical": critical, "dice": [attack] + ([damage] if damage else []),
+            "hit": hit, "critical": critical,
+            "dice": [attack] + ([damage] if damage else []) + ([sneak_damage] if sneak_damage else []),
+            "sneak_attack_used": sneak_damage is not None,
             "damage": amount, "rolled_damage": rolled_damage,
             "hp_before": hp_before, "hp_after": hp_after,
             "temp_hp_before": temp_before, "temp_hp_after": temp_before - absorbed,

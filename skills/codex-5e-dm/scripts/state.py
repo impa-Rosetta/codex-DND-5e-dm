@@ -200,6 +200,8 @@ def apply_event(state: dict, event: dict) -> dict:
             if connection not in result["scene"]["discovered_connections"]:
                 result["scene"]["discovered_connections"].append(connection)
     elif kind == "combat.attack_resolved":
+        if payload.get("sneak_attack_used"):
+            result["combat"]["sneak_attack_used"] = True
         if "ammunition_arrow_after" in payload:
             arrows = result["character"]["resources"].get("ammunition_arrow")
             if arrows is None or payload["ammunition_arrow_after"] != arrows["current"] - 1:
@@ -246,6 +248,7 @@ def apply_event(state: dict, event: dict) -> dict:
         result["combat"]["reaction_used"] = False
         result["combat"]["movement_used"] = 0
         result["combat"]["death_save_made"] = False
+        result["combat"]["sneak_attack_used"] = False
     elif kind == "combat.action_taken":
         combat = result["combat"]
         actor = combat["combatants"][combat["turn_index"]]
@@ -260,6 +263,8 @@ def apply_event(state: dict, event: dict) -> dict:
             raise StateError("Invalid combat movement actor or origin")
         opportunity = payload.get("opportunity_attack")
         if opportunity is not None:
+            if opportunity.get("sneak_attack_used"):
+                combat["sneak_attack_used"] = True
             enemy = next((unit for unit in combat["combatants"]
                           if unit["combatant_id"] == opportunity["actor_combatant_id"]), None)
             if enemy is None or enemy.get("reaction_used"):

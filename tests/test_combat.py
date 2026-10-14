@@ -72,6 +72,30 @@ class CombatTests(unittest.TestCase):
         self.assertEqual(result["dice"][0]["raw"], [14])
         self.assertTrue(result["hit"])
 
+    def test_sneak_attack_adds_die_only_on_effective_advantage(self):
+        values = iter([10, 15, 2, 3])
+        result = combat.resolve_attack(self.fight, "hero", "goblin", self.weapon,
+                                       mode="advantage", sneak_attack_on_advantage=True,
+                                       roller=lambda _: next(values))
+        self.assertTrue(result["sneak_attack_used"])
+        self.assertEqual(result["rolled_damage"], 8)
+        self.fight["combatants"][1]["dodging"] = True
+        values = iter([15, 2])
+        canceled = combat.resolve_attack(self.fight, "hero", "goblin", self.weapon,
+                                         mode="advantage", sneak_attack_on_advantage=True,
+                                         roller=lambda _: next(values))
+        self.assertFalse(canceled["sneak_attack_used"])
+        self.assertEqual(len(canceled["dice"]), 2)
+
+    def test_critical_sneak_attack_doubles_extra_die(self):
+        values = iter([20, 10, 2, 3, 4, 5])
+        result = combat.resolve_attack(self.fight, "hero", "goblin", self.weapon,
+                                       mode="advantage", sneak_attack_on_advantage=True,
+                                       roller=lambda _: next(values))
+        self.assertTrue(result["critical"])
+        self.assertEqual(result["dice"][-1]["raw"], [4, 5])
+        self.assertEqual(result["rolled_damage"], 17)
+
 
 if __name__ == "__main__":
     unittest.main()

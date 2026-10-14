@@ -33,7 +33,7 @@ class CharacterTests(unittest.TestCase):
         value = character.options()
         self.assertEqual(len(value["classes"]), 12)
         self.assertEqual({c["id"] for c in value["classes"] if c["status"] == "buildable"},
-                         {"fighter", "barbarian"})
+                         {"fighter", "barbarian", "rogue"})
         data = hero(); data["class"] = "wizard"
         with self.assertRaises(character.CharacterError) as caught:
             character.build(data)
@@ -122,12 +122,29 @@ class CharacterTests(unittest.TestCase):
                        "armor": "none", "shield": False, "weapon": "greataxe"})
         with self.assertRaises(character.CharacterError):
             character.build(data)
+
+    def test_human_rogue_expertise_and_rapier(self):
+        data = hero()
+        data.update(**{"class": "rogue", "class_skills": ["acrobatics", "athletics", "perception", "stealth"],
+                       "expertise": ["perception", "stealth"], "armor": "leather_armor",
+                       "shield": False, "weapon": "rapier"})
         del data["fighting_style"]
-        data["class_skills"] = ["acrobatics", "perception"]
-        with self.assertRaises(character.CharacterError):
-            character.build(data)
-        data["shield"] = False
-        data["armor"] = "chain_mail"
+        card = character.build(data)
+        self.assertEqual(card["derived"]["max_hp"], 10)
+        self.assertEqual(card["derived"]["ac"], 13)
+        self.assertEqual(card["derived"]["hit_die"], "d8")
+        self.assertEqual(card["derived"]["skills"]["perception"], 4)
+        self.assertEqual(card["derived"]["saving_throws"]["dex"], 4)
+        self.assertEqual(card["derived"]["attacks"][0]["attack_bonus"], 4)
+        self.assertIn("thieves_cant", card["derived"]["languages"])
+        self.assertIn("class.rogue.sneak_attack", card["rule_ids"])
+
+    def test_rogue_rejects_invalid_expertise(self):
+        data = hero()
+        data.update(**{"class": "rogue", "class_skills": ["acrobatics", "athletics", "perception", "stealth"],
+                       "expertise": ["perception", "arcana"], "armor": "leather_armor",
+                       "shield": False, "weapon": "rapier"})
+        del data["fighting_style"]
         with self.assertRaises(character.CharacterError):
             character.build(data)
 
